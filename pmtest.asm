@@ -11,16 +11,19 @@ jmp        LABEL_BEGIN
 
 [SECTION .gdt]
 ; GDT
-;                                       段基址,                段界限,    属性
-LABEL_GDT:            Descriptor            0,                    0,    0                       ; 空描述符
-LABEL_DESC_NORMAL:    Descriptor            0,               0ffffh,    DA_DRW
-LABEL_DESC_CODE32:    Descriptor            0,     SegCode32Len - 1,    DA_C + DA_32            ; 非一致代码段，32
-LABEL_DESC_CODE16:    Descriptor            0,               0ffffh,    DA_C                    ; 非一致代码段，16
-LABEL_DESC_DATA:      Descriptor            0,            DataLen-1,    DA_DRW                  ; Data
-LABEL_DESC_STACK:     Descriptor            0,           TopOfStack,    DA_DRWA + DA_32         ; Stack, 32
-LABEL_DESC_TEST:      Descriptor     0500000h,               0ffffh,    DA_DRW
-LABEL_DESC_VIDEO:     Descriptor      0B8000h,               0ffffh,    DA_DRW                  ; 显存首地址
-LABEL_DESC_LDT:       Descriptor            0,           LDTLen - 1,    DA_LDT                  ; LDT
+;                                       段基址,                段界限,                属性
+LABEL_GDT:            Descriptor            0,                    0,                0                       ; 空描述符
+LABEL_DESC_NORMAL:    Descriptor            0,               0ffffh,                DA_DRW
+LABEL_DESC_CODE32:    Descriptor            0,     SegCode32Len - 1,                DA_C + DA_32            ; 非一致代码段，32
+LABEL_DESC_CODE16:    Descriptor            0,               0ffffh,                DA_C                    ; 非一致代码段，16
+LABEL_DESC_DATA:      Descriptor            0,            DataLen-1,                DA_DRW + DA_DPL1        ; Data
+LABEL_DESC_STACK:     Descriptor            0,           TopOfStack,                DA_DRWA + DA_32         ; Stack, 32
+LABEL_DESC_TEST:      Descriptor     0500000h,               0ffffh,                DA_DRW
+LABEL_DESC_VIDEO:     Descriptor      0B8000h,               0ffffh,                DA_DRW                  ; 显存首地址
+LABEL_DESC_LDT:       Descriptor            0,           LDTLen - 1,                DA_LDT                  ; LDT
+LABEL_DESC_CODE_DEST: Descriptor            0,   SegCodeDestLen - 1,                DA_C + DA_32            ; 非一致，32位
+; 门                                 目标选择子,                  偏移,    DCount,     属性
+LABEL_CALL_GATE_TEST: Gate   SelectorCodeDest,                    0,         0,     DA_386CGate + DA_DPL0
 ; GDT结束
 
 GdtLen      equ     $ - LABEL_GDT       ; GDT长度
@@ -31,11 +34,14 @@ GdtPtr      dw      GdtLen - 1          ; GDT界限
 SelectorNormal      equ     LABEL_DESC_NORMAL       - LABEL_GDT
 SelectorCode32      equ     LABEL_DESC_CODE32       - LABEL_GDT
 SelectorCode16      equ     LABEL_DESC_CODE16       - LABEL_GDT
-SelectorData        equ     LABEL_DESC_DATA         - LABEL_GDT
+SelectorData        equ     LABEL_DESC_DATA         - LABEL_GDT + SA_RPL0
 SelectorStack       equ     LABEL_DESC_STACK        - LABEL_GDT
 SelectorTest        equ     LABEL_DESC_TEST         - LABEL_GDT
 SelectorVideo       equ     LABEL_DESC_VIDEO        - LABEL_GDT
 SelectorLDT         equ     LABEL_DESC_LDT          - LABEL_GDT
+SelectorCodeDest    equ     LABEL_DESC_CODE_DEST    - LABEL_GDT
+SelectorCallGateTest    equ     LABEL_CALL_GATE_TEST    - LABEL_GDT
+
 ; End of [SECTION .gdt]
 
 [SECTION .data1]    ; 数据段
@@ -133,6 +139,16 @@ LABEL_BEGIN:
     mov byte[LABEL_LDT_DESC_CODEA + 4], al
     mov byte[LABEL_LDT_DESC_CODEA + 7], ah
 
+    ; 初始化调用门的代码段描述符
+    xor eax,    eax
+    mov ax,     cs
+    shl eax,    4
+    add eax,    LABEL_SEG_CODE_DEST
+    mov word[LABEL_DESC_CODE_DEST + 2], ax
+    shr eax,    16
+    mov byte[LABEL_DESC_CODE_DEST + 4], al
+    mov byte[LABEL_DESC_CODE_DEST + 7], ah
+
     ; prepare to load GDTR
     xor eax,    eax
     mov ax,     ds
@@ -213,6 +229,10 @@ LABEL_SEG_CODE32:
     call    TestRead
     call    TestWrite
     call    TestRead
+
+    ; 测试调用门（无特权级变换），将打印字母C，由于没有涉及到特权级变换，其实等同于 call    SelectorCodeDest:0
+    call    SelectorCallGateTest:0
+    ; call    SelectorCodeDest:0
 
     ; Load LDT
     mov     ax,     SelectorLDT
@@ -368,3 +388,19 @@ LABEL_CODE_A:
     jmp     SelectorCode16:0
 CodeALen    equ     $ - LABEL_CODE_A
 ; End of [SECTION .la]
+
+[SECTION .sdest];   调用门目标段
+[BITS 32]
+LABEL_SEG_CODE_DEST:
+    mov ax,     SelectorVideo
+    mov gs,     ax
+
+    mov edi,    (80 * 14 + 0) * 2
+    mov ah,     0ch
+    mov al,     'C'
+    mov [gs:edi],   ax
+
+    retf
+
+SegCodeDestLen  equ     $ - LABEL_SEG_CODE_DEST
+; End of [SECTION .sdest]

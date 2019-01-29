@@ -11,6 +11,20 @@
 	db 	(%1 >> 24) & 0FFh 			; 段基址3
 %endmacro	; 共8字节
 
+; 门描述符
+; usage: Gate Selector, Offset, DCount, Attr
+; 		Selector:	dw
+; 		Offset:		dd
+; 		DCount:		db
+;		Attr:		db
+%macro Gate 4
+	dw (%2 & 0FFFFh)
+	dw %1
+	dw (%3 & 1Fh) | ((%4 << 8) & 0FF00h)
+	dw ((%2 >> 16) & 0FFFFh)
+%endmacro
+
+
 ; 描述符类型
 DA_32		equ 		4000h 		; 32位段
 
@@ -35,3 +49,7 @@ DA_386IGate equ 		8Eh			; 386中断门类型值
 DA_386TGate equ 		8Fh 		; 386陷阱门类型值
 
 SA_TIL		equ 		4			; LDT描述符标识
+SA_RPL0		equ 		0			; RPL = 0
+SA_RPL1		equ 		1			; RPL = 1
+SA_RPL2		equ 		2			; RPL = 2
+SA_RPL3		equ 		3			; RPL = 3
