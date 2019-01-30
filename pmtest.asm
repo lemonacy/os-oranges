@@ -1,5 +1,5 @@
 ; ================================================================================ 
-; pmtest1.asm
+; pmtest.asm
 ; Compile: nasm pmtest.asm -o pmtest.bin
 ; ================================================================================ 
 
@@ -66,16 +66,51 @@ SelectorPageDir     equ     LABEL_DESC_PAGE_DIR     - LABEL_GDT
 SelectorPageTbl     equ     LABEL_DESC_PAGE_TBL     - LABEL_GDT
 ; End of [SECTION .gdt]
 
+
+
+
+
 [SECTION .data1]    ; 数据段
-ALIGN 32
-[BITS 32]
+ALIGN 32            ; 让接下来的指令或数据对齐到32字节处
+[BITS 32]           ; 指定操作数的默认长度，好比: push 0，是push2个字节，还是4个字节
 LABEL_DATA:
-SPValueInRealMode   dw      0
+; 实模式使用这些符号
 ; 字符串
 PMMessage:          db      "In Protected Mode now. ^-^", 0     ; 在保护模式中显示
-OffsetPMMessage     equ     PMMessage - $$
 StrTest:            db      "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0
-OffsetStrTest       equ     StrTest - $$
+_szMemChkTitle:     db      "BaseAddrL  BaseAddrH   LengthLow   LengthHigh  Type",  0Ah,    0
+_szRAMSize:         db      "RAM size:", 0
+_szReturn           db      0Ah, 0
+; 变量
+SPValueInRealMode   dw      0
+_dwMCRNumber:       dd      0
+_dwDispPos:         dd      (80 * 5 + 0) * 2
+_dwMemSize:         dd      0
+_ARDStruct:         ; Address Range Descriptor Structure
+    _dwBaseAddrLow:     dd  0
+    _dwBaseAddrHigh:    dd  0
+    _dwLengthLow:       dd  0
+    _dwLengthHigh:      dd  0
+    _dwType:            dd  0       ; 1 - AddressRangeMemory(OS可用)    2 - AddressRangeReserved(OS不可用)
+_MemChkBuf:         times   256     db  0
+
+; 保护模式下使用这些符号
+OffsetPMMessage     equ     PMMessage       - $$
+OffsetStrTest       equ     StrTest         - $$
+szMemChkTitle       equ     _szMemChkTitle  - $$
+szRAMSize           equ     _szRAMSize      - $$
+szReturn            equ     _szReturn       - $$
+dwMCRNumber         equ     _dwMCRNumber    - $$
+dwDispPos           equ     _dwDispPos      - $$
+dwMemSize           equ     _dwMemSize      - $$
+ARDStruct:
+    dwBaseAddrLow:      equ     _dwBaseAddrLow  - $$
+    dwBaseAddrHigh:     equ     _dwBaseAddrHigh - $$
+    dwLengthLow:        equ     _dwLengthLow    - $$
+    dwLengthHigh:       equ     _dwLengthHigh   - $$
+    dwType:             equ     _dwType         - $$
+MemChkBuf:          equ     _MemChkBuf      - $$
+
 DataLen             equ     $ - LABEL_DATA
 ; End of [SECTION .data1]
 
@@ -141,10 +176,28 @@ LABEL_BEGIN:
     mov ds, ax
     mov es, ax
     mov ss, ax
-    mov sp, 0100h
+    mov sp, 0100h   ; 256
 
     mov [LABEL_GO_BACK_TO_REAL+3],  ax  ; 为回到实模式的跳转指令指定正确的段地址
     mov [SPValueInRealMode], sp
+
+    ; 获取内存大小
+    mov ebx,    0
+    mov di,     _MemChkBuf
+.loop:
+    mov eax,    0E820h
+    mov ecx,    20
+    mov edx,    0534D4150h  ; 'SMAP'
+    int 15h
+    jc  LABEL_MEM_CHK_FAIL
+    add di,     20
+    inc dword[_dwMCRNumber]
+    cmp ebx,    0
+    jne .loop
+    jmp LABEL_MEM_CHK_OK
+LABEL_MEM_CHK_FAIL:
+    mov dword[_dwMCRNumber],    0
+LABEL_MEM_CHK_OK:
 
     ; 初始化16位代码段描述符
     xor eax, eax
@@ -312,7 +365,7 @@ LABEL_SEG_CODE32:
     xor     esi,        esi
     xor     edi,        edi
     mov     esi,        OffsetPMMessage
-    mov     edi,        (80 * 10 + 0) * 2  ; 屏幕第10行，第0列
+    mov     edi,        (80 * 4 + 0) * 2  ; 屏幕第10行，第0列
     cld
 .1:
     lodsb
@@ -325,9 +378,15 @@ LABEL_SEG_CODE32:
 
     call    DispReturn
 
-    call    TestRead
-    call    TestWrite
-    call    TestRead
+    ; call    TestRead
+    ; call    TestWrite
+    ; call    TestRead
+
+    ; 打印内存信息
+    push    szMemChkTitle
+    call    DispStr
+    add     esp,    4   ; 销毁参数
+    call    DispMemSize
 
     ; 测试调用门（无特权级变换），将打印字母C，由于没有涉及到特权级变换，其实等同于 call    SelectorCodeDest:0
     ; call    SelectorCallGateTest:0
@@ -384,63 +443,6 @@ TestWrite:
     ret
 ; End of TestWrite
 
-; --------------------------------------------------------------------------------
-; 显示AL中的数字
-; 默认地：
-;       数字已经存在AL中
-;       edi始终指向要显示的下一个字符的位置
-; 被改变的寄存器：
-;       ax, edi
-; -------------------------------------------------------------------------------- 
-DispAL:
-    push    ecx
-    push    edx
-
-    mov     ah,     0ch     ; 0000:黑底     1100:红字
-    mov     dl,     al
-    shr     al,     4       ; 先显示高4bits
-    mov     ecx,    2
-.begin:
-    and     al,     01111b
-    cmp     al,     9
-    ja      .1
-    add     al,     '0'
-    jmp     .2
-.1:
-    sub     al,     0Ah
-    add     al,     'A'
-.2:
-    mov     [gs:edi],   ax
-    add     edi,    2
-
-    mov     al,     dl      ; 再显示低4bits
-    loop    .begin
-    add     edi,    2
-
-    pop     edx
-    pop     ecx
-
-    ret
-; End of DispAL
-
-; --------------------------------------------------------------------------------
-DispReturn:
-    push    eax
-    push    ebx
-    mov     eax,    edi
-    mov     bl,     160
-    div     bl      ; eax为被除数，ax存商，eax的高16位存余数
-    and     eax,    0FFh    ; al为商（行数）
-    inc     eax             ; 行数加1
-    mov     bl,     160
-    mul     bl      ; al为乘数，积存ax
-    mov     edi,    eax
-    pop     ebx
-    pop     eax
-
-    ret
-; End of DispReturn
-
 ; 启动分页机制 --------------------------------------------------------------------------------
 SetupPaging:
     ; 为了简化处理，所有线性地址对应相等的物理地址
@@ -480,6 +482,53 @@ SetupPaging:
 
     ret
 ; 分页机制启动完毕 --------------------------------------------------------------------------------
+
+;; 显示内存信息
+DispMemSize:
+    push    esi
+    push    edi
+    push    ecx
+
+    mov     esi,    MemChkBuf
+    mov     ecx,    [dwMCRNumber]
+.loop:
+    mov     edx,    5                   ; for(int i = 0; i < 5; i++)    // 每次得到一个ARDS中的成员
+    mov     edi,    ARDStruct           ; 依次显示BaseAddrLow, BaseAddrHigh, LengthLow, LengthHigh, Type
+.1:
+    push    dword[esi]
+    call    DispInt
+    pop     eax
+    stosd
+    add     esi,    4
+    dec     edx
+    cmp     edx,    0
+    jnz     .1
+    call    DispReturn
+    cmp     dword[dwType],  1           ; if(Type == AddressRangeMemory)
+    jne     .2
+    mov     eax,    [dwBaseAddrLow]
+    add     eax,    [dwLengthLow]
+    cmp     eax,    [dwMemSize]         ;       if(BaseAddrLow + LengthLow > MemSize)
+    jb      .2
+    mov     [dwMemSize],    eax         ;           MemSize = BaseAddrLow + LengthLow
+.2:
+    loop    .loop
+
+    call    DispReturn
+    push    szRAMSize
+    call    DispStr                     ; printf("RAM size:")
+    add     esp,    4
+
+    push    dword[dwMemSize]
+    call    DispInt
+    add     esp,    4
+
+    pop     ecx
+    pop     edi
+    pop     esi
+    ret
+
+%include    "lib.inc"
 
 SegCode32Len    equ     $ - LABEL_SEG_CODE32
 ; End of [SECTION .s32]
@@ -524,7 +573,7 @@ LABEL_CODE_A:
     mov     ax,     SelectorVideo
     mov     gs,     ax
 
-    mov     edi,    (80 * 13 + 0) * 2
+    mov     edi,    (80 * 17 + 0) * 2
     mov     ah,     0ch
     mov     al,     'L'
     mov     [gs:edi],   ax
@@ -540,7 +589,7 @@ LABEL_SEG_CODE_DEST:
     mov ax,     SelectorVideo
     mov gs,     ax
 
-    mov edi,    (80 * 14 + 0) * 2
+    mov edi,    (80 * 16 + 0) * 2
     mov ah,     0ch
     mov al,     'C'
     mov [gs:edi],   ax
