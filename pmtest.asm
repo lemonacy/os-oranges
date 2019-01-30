@@ -21,12 +21,17 @@ LABEL_DESC_STACK:     Descriptor            0,           TopOfStack,            
 LABEL_DESC_TEST:      Descriptor     0500000h,               0ffffh,                DA_DRW
 LABEL_DESC_VIDEO:     Descriptor      0B8000h,               0ffffh,                DA_DRW + DA_DPL3        ; 显存首地址
 LABEL_DESC_LDT:       Descriptor            0,           LDTLen - 1,                DA_LDT                  ; LDT
+
+; 调用门
 LABEL_DESC_CODE_DEST: Descriptor            0,   SegCodeDestLen - 1,                DA_C + DA_32            ; 非一致，32位
 ; 门                                 目标选择子,                  偏移,    DCount,     属性
-LABEL_CALL_GATE_TEST: Gate   SelectorCodeDest,                    0,         0,     DA_386CGate + DA_DPL0
+LABEL_CALL_GATE_TEST: Gate   SelectorCodeDest,                    0,         0,     DA_386CGate + DA_DPL3
 
+; Ring3低特权级段
 LABEL_DESC_CODE_RING3:  Descriptor          0,   SegCodeRing3Len - 1,               DA_C + DA_32 + DA_DPL3
 LABEL_DESC_STACK3:      Descriptor          0,           TopOfStack3,               DA_DRWA + DA_32 + DA_DPL3
+; TSS
+LABEL_DESC_TSS:         Descriptor          0,            TSSLen - 1,               DA_386TSS
 ; GDT结束
 
 GdtLen      equ     $ - LABEL_GDT       ; GDT长度
@@ -44,11 +49,12 @@ SelectorVideo       equ     LABEL_DESC_VIDEO        - LABEL_GDT
 SelectorLDT         equ     LABEL_DESC_LDT          - LABEL_GDT
 ; 调用门
 SelectorCodeDest        equ     LABEL_DESC_CODE_DEST    - LABEL_GDT
-SelectorCallGateTest    equ     LABEL_CALL_GATE_TEST    - LABEL_GDT
+SelectorCallGateTest    equ     LABEL_CALL_GATE_TEST    - LABEL_GDT + SA_RPL3
 ; ring0 -> ring3
 SelectorCodeRing3   equ     LABEL_DESC_CODE_RING3   - LABEL_GDT + SA_RPL3
 SelectorStack3      equ     LABEL_DESC_STACK3       - LABEL_GDT + SA_RPL3
-
+; TSS
+SelectorTSS         equ     LABEL_DESC_TSS          - LABEL_GDT
 ; End of [SECTION .gdt]
 
 [SECTION .data1]    ; 数据段
@@ -82,6 +88,42 @@ LABEL_STACK3:
     times 512 db 0
 TopOfStack3 equ     $ - LABEL_STACK3 - 1
 ; End of [SECTION .s3]
+
+; TSS
+[SECTION .tss]
+ALIGN   32
+[BITS   32]
+LABEL_TSS:
+    dd  0                   ; Back
+    dd  TopOfStack          ; 0级堆栈
+    dd  SelectorStack       ;
+    dd  0                   ; 1级堆栈
+    dd  0
+    dd  0                   ; 2级堆栈
+    dd  0
+    dd  0                   ; CR3
+    dd  0                   ; EIP
+    dd  0                   ; EFLAGS
+    dd  0                   ; EAX
+    dd  0                   ; ECX
+    dd  0                   ; EDX
+    dd  0                   ; EBX
+    dd  0                   ; ESP
+    dd  0                   ; EBP
+    dd  0                   ; ESI
+    dd  0                   ; EDI
+    dd  0                   ; ES
+    dd  0                   ; CS
+    dd  0                   ; SS
+    dd  0                   ; DS
+    dd  0                   ; FS
+    dd  0                   ; GS
+    dd  0                   ; LDT
+    dw  0                   ; 调试陷阱标志
+    dw  $ - LABEL_TSS + 2   ; I/O位图基址
+    db  0ffh                ; I/O位图结束标志
+TSSLen  equ     $ - LABEL_TSS
+; End of [SECTION .tss]
 
 [SECTION .s16]
 [BITS 16]
@@ -177,13 +219,23 @@ LABEL_BEGIN:
 
     ; 初始化Ring3堆栈段描述符
 	xor	eax, eax
-	mov	ax, ds
+	mov	ax,  ds
 	shl	eax, 4
 	add	eax, LABEL_STACK3
 	mov	word [LABEL_DESC_STACK3 + 2], ax
 	shr	eax, 16
 	mov	byte [LABEL_DESC_STACK3 + 4], al
 	mov	byte [LABEL_DESC_STACK3 + 7], ah
+
+    ; 初始化TSS段描述符
+	xor	eax, eax
+	mov	ax,  ds
+	shl	eax, 4
+	add	eax, LABEL_TSS
+	mov	word [LABEL_DESC_TSS + 2], ax
+	shr	eax, 16
+	mov	byte [LABEL_DESC_TSS + 4], al
+	mov	byte [LABEL_DESC_TSS + 7], ah
 
     ; prepare to load GDTR
     xor eax,    eax
@@ -267,8 +319,12 @@ LABEL_SEG_CODE32:
     call    TestRead
 
     ; 测试调用门（无特权级变换），将打印字母C，由于没有涉及到特权级变换，其实等同于 call    SelectorCodeDest:0
-    call    SelectorCallGateTest:0
+    ; call    SelectorCallGateTest:0
     ; call    SelectorCodeDest:0
+
+    ; Load TSS
+    mov ax,     SelectorTSS
+    ltr ax
 
     ; Ring0 -> Ring3
     push SelectorStack3
@@ -276,11 +332,6 @@ LABEL_SEG_CODE32:
     push SelectorCodeRing3
     push 0
     retf
-
-    ; Load LDT
-    mov     ax,     SelectorLDT
-    lldt    ax
-    jmp     SelectorLDTCodeA:0  ; 跳入局部任务
 
     ; 到此停止
     ; jmp     SelectorCode16:0
@@ -443,7 +494,12 @@ LABEL_SEG_CODE_DEST:
     mov al,     'C'
     mov [gs:edi],   ax
 
-    retf
+    ; Load LDT
+    mov     ax,     SelectorLDT
+    lldt    ax
+    jmp     SelectorLDTCodeA:0  ; 跳入局部任务
+
+    ; retf
 
 SegCodeDestLen  equ     $ - LABEL_SEG_CODE_DEST
 ; End of [SECTION .sdest]
@@ -460,6 +516,8 @@ LABEL_CODE_RING3:
     mov ah,     0ch
     mov al,     '3'
     mov [gs:edi],   ax
+
+    call SelectorCallGateTest:0
 
     jmp $
 SegCodeRing3Len equ     $ - LABEL_CODE_RING3
