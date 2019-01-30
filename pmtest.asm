@@ -5,6 +5,9 @@
 
 %include    "pm.inc"    ; Constants, Macros, or some descriptions
 
+PageDirBase     equ     200000h ; 页目录开始地址：2M
+PageTblBase     equ     201000h ; 页表开始地址： 2M+4K
+
 ; org        07c00h
 org        0100h
 jmp        LABEL_BEGIN
@@ -32,6 +35,9 @@ LABEL_DESC_CODE_RING3:  Descriptor          0,   SegCodeRing3Len - 1,           
 LABEL_DESC_STACK3:      Descriptor          0,           TopOfStack3,               DA_DRWA + DA_32 + DA_DPL3
 ; TSS
 LABEL_DESC_TSS:         Descriptor          0,            TSSLen - 1,               DA_386TSS
+; 分页
+LABEL_DESC_PAGE_DIR:    Descriptor  PageDirBase,                4095,               DA_DRW                  ; Page Directory，4K的段
+LABEL_DESC_PAGE_TBL:    Descriptor  PageTblBase,                1023,               DA_DRW | DA_LIMIT_4K    ; Page Tables   ，4M的段(1024*4K)
 ; GDT结束
 
 GdtLen      equ     $ - LABEL_GDT       ; GDT长度
@@ -55,6 +61,9 @@ SelectorCodeRing3   equ     LABEL_DESC_CODE_RING3   - LABEL_GDT + SA_RPL3
 SelectorStack3      equ     LABEL_DESC_STACK3       - LABEL_GDT + SA_RPL3
 ; TSS
 SelectorTSS         equ     LABEL_DESC_TSS          - LABEL_GDT
+; 分页
+SelectorPageDir     equ     LABEL_DESC_PAGE_DIR     - LABEL_GDT
+SelectorPageTbl     equ     LABEL_DESC_PAGE_TBL     - LABEL_GDT
 ; End of [SECTION .gdt]
 
 [SECTION .data1]    ; 数据段
@@ -286,6 +295,8 @@ LABEL_REAL_ENTRY:   ; 从保护模式调回到实模式就到了这里
 [SECTION .s32]  ; 32位代码段，由实模式跳入
 [BITS 32]
 LABEL_SEG_CODE32:
+    call    SetupPaging
+
     mov     ax,         SelectorData
     mov     ds,         ax
     mov     ax,         SelectorTest
@@ -430,6 +441,46 @@ DispReturn:
     ret
 ; End of DispReturn
 
+; 启动分页机制 --------------------------------------------------------------------------------
+SetupPaging:
+    ; 为了简化处理，所有线性地址对应相等的物理地址
+
+    ; 首先初始化页目录
+    mov ax,     SelectorPageDir
+    mov es,     ax
+    mov ecx,    1024    ; 共1024个表项
+    xor edi,    edi
+    xor eax,    eax
+    mov eax,    PageTblBase | PG_P | PG_USU | PG_RWW
+.1:
+    stosd   ; eax -> es:edi
+    add eax,    4096    ; 为了简化，所有页表在内存中是连续的
+    loop    .1
+
+    ; 再初始化所有页表（1K个，4M内存空间）
+    mov ax,     SelectorPageTbl
+    mov es,     ax
+    mov ecx,    1024 * 1024 ; 共1M个页表项，也即有1M个项，覆盖1M*4K=4G内存空间
+    xor edi,    edi
+    xor eax,    eax
+    mov eax,    0 | PG_P | PG_USU | PG_RWW  ; 从内存地址0开始计算
+.2:
+    stosd   ; eax -> es:edi
+    add eax,    4096        ; 每一项指向4K的空间
+    loop .2
+
+    mov eax,    PageDirBase
+    mov cr3,    eax         ; CR3 - Page-Directory Base Register，高20位起作用(4K对齐)
+    mov eax,    cr0
+    or  eax,    80000000h   ; 设置CR0的PG位
+    mov cr0,    eax
+    jmp short .3
+.3:
+    nop
+
+    ret
+; 分页机制启动完毕 --------------------------------------------------------------------------------
+
 SegCode32Len    equ     $ - LABEL_SEG_CODE32
 ; End of [SECTION .s32]
 
@@ -446,7 +497,7 @@ LABEL_SEG_CODE16: ; 此处还是保护模式下的16位代码
     mov ss,     ax
 
     mov eax,    cr0
-    and al,     11111110b
+    and eax,    7FFFFFFEh   ; PE=0,PG=0
     mov cr0,    eax         ; 切换为实模式
 
 LABEL_GO_BACK_TO_REAL:

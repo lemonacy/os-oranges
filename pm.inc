@@ -27,6 +27,7 @@
 
 ; 描述符类型
 DA_32		equ 		4000h 		; 32位段
+DA_LIMIT_4K	equ			8000h		; 段界限粒度为4K字节 
 
 DA_DPL0		equ 		00h			; DPL = 0
 DA_DPL1		equ 		20h			; DPL = 1
@@ -48,8 +49,17 @@ DA_386CGate equ 		8Ch 		; 386调用门类型值
 DA_386IGate equ 		8Eh			; 386中断门类型值
 DA_386TGate equ 		8Fh 		; 386陷阱门类型值
 
+SA_TLG		equ 		0 			; GDT描述符标识
 SA_TIL		equ 		4			; LDT描述符标识
+
 SA_RPL0		equ 		0			; RPL = 0
 SA_RPL1		equ 		1			; RPL = 1
 SA_RPL2		equ 		2			; RPL = 2
 SA_RPL3		equ 		3			; RPL = 3
+
+; 分页机制使用的常量说明
+PG_P		equ 		1 			; 页存在属性位
+PG_RWR 		equ 		0			; R/W属性位，读/执行
+PG_RWW 		equ 		2 			; R/W属性位，读/写/执行
+PG_USS 		equ 		0 			; U/S属性位，系统级
+PG_USU		equ 		4 			; U/S属性位，用户级
