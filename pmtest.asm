@@ -103,7 +103,7 @@ szReturn            equ     _szReturn       - $$
 dwMCRNumber         equ     _dwMCRNumber    - $$
 dwDispPos           equ     _dwDispPos      - $$
 dwMemSize           equ     _dwMemSize      - $$
-ARDStruct:
+ARDStruct:          equ     _ARDStruct      - $$
     dwBaseAddrLow:      equ     _dwBaseAddrLow  - $$
     dwBaseAddrHigh:     equ     _dwBaseAddrHigh - $$
     dwLengthLow:        equ     _dwLengthLow    - $$
@@ -182,17 +182,17 @@ LABEL_BEGIN:
     mov [SPValueInRealMode], sp
 
     ; 获取内存大小
-    mov ebx,    0
+    mov ebx,    0           ; 放置着“后续值（continuation value）”，第一次调用时ebx必须为0
     mov di,     _MemChkBuf
 .loop:
     mov eax,    0E820h
     mov ecx,    20
     mov edx,    0534D4150h  ; 'SMAP'
     int 15h
-    jc  LABEL_MEM_CHK_FAIL
-    add di,     20
-    inc dword[_dwMCRNumber]
-    cmp ebx,    0
+    jc  LABEL_MEM_CHK_FAIL  ; CF=0表示成功，否则失败
+    add di,     20          ; 20位ARDStruct的大小
+    inc dword[_dwMCRNumber] ; 记录内存信息条数
+    cmp ebx,    0           ; 如果ebx=0，且CF没有进位，则说明是最后一个地址范围描述符
     jne .loop
     jmp LABEL_MEM_CHK_OK
 LABEL_MEM_CHK_FAIL:
@@ -352,7 +352,7 @@ LABEL_SEG_CODE32:
 
     mov     ax,         SelectorData
     mov     ds,         ax
-    mov     ax,         SelectorTest
+    mov     ax,         SelectorData
     mov     es,         ax
     mov     ax,         SelectorVideo
     mov     gs,         ax      ; 视频段选择子（目的）
@@ -497,13 +497,16 @@ DispMemSize:
 .1:
     push    dword[esi]
     call    DispInt
+
     pop     eax
-    stosd
+    stosd       ; 保持MemChkBuf数组中的一项到ARDStruct结构体，下面会用来计算MemSize
+    
     add     esi,    4
     dec     edx
     cmp     edx,    0
     jnz     .1
-    call    DispReturn
+    call    DispReturn                  ; 显示完一条地址信息，换行
+    
     cmp     dword[dwType],  1           ; if(Type == AddressRangeMemory)
     jne     .2
     mov     eax,    [dwBaseAddrLow]
