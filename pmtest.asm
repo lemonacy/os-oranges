@@ -53,9 +53,11 @@ ALIGN   32
 [BITS   32]
 LABEL_IDT:
 ; 门                目标选择子，                  偏移，      DCount，    属性
-%rep 255
+%rep 128
     Gate      SelectorCode32,       SpuriousHandler,            0,    DA_386IGate
 %endrep
+.080h:        
+    Gate      SelectorCode32,        UserIntHandler,            0,    DA_386IGate  
 IdtLen      equ     $ - LABEL_IDT
 IdtPtr      dw      IdtLen - 1  ; 段界限
             dd      0           ; 段基址
@@ -277,6 +279,7 @@ LABEL_SEG_CODE32:
     mov     esp,        TopOfStack
 
     call    Init8259A
+    int     80h
     jmp     $
 
     ; 显示保护模式字符串
@@ -581,6 +584,14 @@ SpuriousHandler     equ     _SpuriousHandler - $$
     mov     ah,     0Ch
     mov     al,     '!'
     mov     [gs:((80 * 0 + 75) * 2)],   ax
+    iretd
+
+;; --------------------------------------------------------------------------------
+_UserIntHandler:
+UserIntHandler      equ     _UserIntHandler - $$
+    mov     ah,     0Ch
+    mov     al,     'I'
+    mov     [gs:((80 * 0 + 70) * 2)],   ax
     iretd
 
 ;; --------------------------------------------------------------------------------
