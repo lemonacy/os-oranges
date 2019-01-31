@@ -48,6 +48,19 @@ SelectorFlatC       equ     LABEL_DESC_FLAT_C       - LABEL_GDT
 SelectorFlatRW      equ     LABEL_DESC_FLAT_RW      - LABEL_GDT
 ; End of [SECTION .gdt]
 
+[SECTION .idt]
+ALIGN   32
+[BITS   32]
+LABEL_IDT:
+; 门                目标选择子，                  偏移，      DCount，    属性
+%rep 255
+    Gate      SelectorCode32,       SpuriousHandler,            0,    DA_386IGate
+%endrep
+IdtLen      equ     $ - LABEL_IDT
+IdtPtr      dw      IdtLen - 1  ; 段界限
+            dd      0           ; 段基址
+; End of [SECTION .idt]
+
 [SECTION .data1]    ; 数据段
 ALIGN 32            ; 让接下来的指令或数据对齐到32字节处
 [BITS 32]           ; 指定操作数的默认长度，好比: push 0，是push2个字节，还是4个字节
@@ -72,8 +85,11 @@ _ARDStruct:         ; Address Range Descriptor Structure
     _dwType:            dd  0       ; 1 - AddressRangeMemory(OS可用)    2 - AddressRangeReserved(OS不可用)
 _MemChkBuf:         times   256     db  0
 _PageTableNumber:   dd      0
-_Foo                db      "Foo", 0Ah, 0
-_Bar                db      "Bar", 0Ah, 0
+_Foo:               db      "Foo", 0Ah, 0
+_Bar:               db      "Bar", 0Ah, 0
+_SavedIDTR:         dd      0       ; 用于保存IDTR
+                    dd      0
+_SavedIMREG:        db      0       ; 用于保存中断屏蔽寄存器值
 
 ; 保护模式下使用这些符号
 OffsetPMMessage     equ     PMMessage       - $$
@@ -94,6 +110,8 @@ MemChkBuf:          equ     _MemChkBuf      - $$
 PageTableNumber     equ     _PageTableNumber    - $$
 Foo                 equ     _Foo            - $$
 Bar                 equ     _Bar            - $$
+SavedIDTR           equ     _SavedIDTR      - $$
+SavedIMREG          equ     _SavedIMREG     - $$
 
 DataLen             equ     $ - LABEL_DATA
 ; End of [SECTION .data1]
@@ -178,18 +196,35 @@ LABEL_MEM_CHK_OK:
 	mov	byte [LABEL_DESC_STACK + 4], al
 	mov	byte [LABEL_DESC_STACK + 7], ah
 
-    ; prepare to load GDTR
+    ; 为加载GDTR做准备
     xor eax,    eax
     mov ax,     ds
     shl eax,    4
     add eax,    LABEL_GDT       ; eax <- gdt基地址
     mov dword[GdtPtr + 2], eax  ; [GdtPtr + 2] <- gdt基地址
 
-    ; load GDTR
+    ; 加载GDTR
     lgdt    [GdtPtr]
 
-    ; close interrupt
-    cli
+    ; 为加载IDTR做准备
+    xor eax,    eax
+    mov ax,     ds
+    shl eax,    4
+    add eax,    LABEL_IDT       ; eax   <- idt基地址
+    mov dword[IdtPtr + 2], eax  ; [IdtPtr + 2] <- idt基地址
+
+    ; 保存IDTR
+    sidt    [_SavedIDTR]
+
+    ; 保存中断屏蔽寄存器(IMREG)值
+    in  al,     021h            ; 主8259A
+    mov [_SavedIMREG],  al
+
+    ; 关中断
+    cli     ; 在执行lidt之前用cli指令清IF位，暂时不影响可屏蔽中断
+
+    ; 加载IDTR
+    lidt    [IdtPtr]
 
     ; 打开地址线A20
     in  al,     92h
@@ -211,6 +246,10 @@ LABEL_REAL_ENTRY:   ; 从保护模式调回到实模式就到了这里
     mov     ss,     ax
 
     mov     sp,     [SPValueInRealMode]
+
+    lidt    [_SavedIDTR]            ; 恢复IDTR的原值
+    mov     al,     [_SavedIMREG]
+    out     021h,   al              ; 恢复中断屏蔽寄存器(IMREG)的原值
 
     in      al,     92h             ; '.
     and     al,     11111101b       ;  | 关闭A20地址线
@@ -237,6 +276,9 @@ LABEL_SEG_CODE32:
     mov     ss,         ax
     mov     esp,        TopOfStack
 
+    call    Init8259A
+    jmp     $
+
     ; 显示保护模式字符串
     push    OffsetPMMessage
     call    DispStr
@@ -249,6 +291,8 @@ LABEL_SEG_CODE32:
     call    DispMemSize
 
     call    PagingDemo
+
+    call    SetRealMode8259A
 
     ; 到此停止
     jmp     SelectorCode16:0
@@ -488,6 +532,89 @@ PSwitch:
     nop
 
     ret
+
+;; --------------------------------------------------------------------------------
+Init8259A:
+    mov     al,     011h
+    out     020h,   al          ; 主8259A，ICW1
+    call    io_delay
+
+    out     0A0h,   al          ; 从8259A，ICW1
+    call    io_delay
+
+    mov     al,     020h        ; IRQ0对应中断向量号0x20
+    out     021h,   al          ; 主8259A，ICW2
+    call    io_delay
+
+    mov     al,     028h        ; IRQ8对应中断向量号0x28
+    out     0A1h,   al          ; 从8259A，ICW2
+    call    io_delay
+
+    mov     al,     004h        ; IR2对应从8259A
+    out     021h,   al          ; 主8259A，ICW3
+    call    io_delay
+
+    mov     al,     002h        ; 从8259A对应主片的IR2
+    out     0A1h,   al          ; 从8259A，ICW3
+    call    io_delay
+
+    mov     al,     001h
+    out     021h,   al          ; 主8259A，ICW4
+    call    io_delay
+
+    out     0A1h,   al          ; 从8259A，ICW4
+    call    io_delay
+
+    mov     al,     11111110b   ; 仅仅开启定时器中断
+    out     021h,   al          ; 主8259A，OCW1
+    call    io_delay
+
+    mov     al,     11111111b   ; 屏蔽从8259A所有中断
+    out     0A1h,   al          ; 从8259A，OCW1
+    call    io_delay
+
+    ret
+
+;; --------------------------------------------------------------------------------
+_SpuriousHandler:
+SpuriousHandler     equ     _SpuriousHandler - $$
+    mov     ah,     0Ch
+    mov     al,     '!'
+    mov     [gs:((80 * 0 + 75) * 2)],   ax
+    iretd
+
+;; --------------------------------------------------------------------------------
+io_delay:
+    nop
+    nop
+    nop
+    nop
+
+    ret
+
+;; --------------------------------------------------------------------------------
+SetRealMode8259A:
+    mov     ax,     SelectorData
+    mov     fs,     ax
+
+    mov     al,     017h
+    out     020h,   al      ; 主8259，ICW1
+    call    io_delay
+
+    mov     al,     008h    ; IRQ0 对应中断号 0x8
+    out     021h,   al      ; 主8259，ICW2
+    call    io_delay
+
+    mov     al,     001h
+    out     021h,   al      ; 主8259，ICW4
+    call    io_delay
+
+    mov     al,     [fs:SavedIMREG] ; 恢复中断屏蔽寄存器(IMREG)的原值
+    out     021h,   al
+    call    io_delay
+
+    ret
+
 ;; --------------------------------------------------------------------------------
 
 %include    "lib.inc"
