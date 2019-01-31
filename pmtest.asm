@@ -52,12 +52,17 @@ SelectorFlatRW      equ     LABEL_DESC_FLAT_RW      - LABEL_GDT
 ALIGN   32
 [BITS   32]
 LABEL_IDT:
-; 门                目标选择子，                  偏移，      DCount，    属性
-%rep 128
-    Gate      SelectorCode32,       SpuriousHandler,            0,    DA_386IGate
+; 门                目标选择子，                  偏移，      DCount，      属性
+%rep 32
+    Gate      SelectorCode32,       SpuriousHandler,            0,      DA_386IGate
 %endrep
-.080h:        
-    Gate      SelectorCode32,        UserIntHandler,            0,    DA_386IGate  
+.020h:
+    Gate      SelectorCode32,          ClockHandler,            0,      DA_386IGate
+%rep 95
+    Gate      SelectorCode32,       SpuriousHandler,            0,      DA_386IGate
+%endrep
+.080h:       
+    Gate      SelectorCode32,        UserIntHandler,            0,      DA_386IGate  
 IdtLen      equ     $ - LABEL_IDT
 IdtPtr      dw      IdtLen - 1  ; 段界限
             dd      0           ; 段基址
@@ -280,6 +285,7 @@ LABEL_SEG_CODE32:
 
     call    Init8259A
     int     80h
+    sti         ; 开中断
     jmp     $
 
     ; 显示保护模式字符串
@@ -568,7 +574,7 @@ Init8259A:
     out     0A1h,   al          ; 从8259A，ICW4
     call    io_delay
 
-    mov     al,     11111110b   ; 仅仅开启定时器中断
+    mov     al,     11111110b   ; 仅仅开启定时器中断(对应的中断处理Proc为ClockHandler)
     out     021h,   al          ; 主8259A，OCW1
     call    io_delay
 
@@ -592,6 +598,14 @@ UserIntHandler      equ     _UserIntHandler - $$
     mov     ah,     0Ch
     mov     al,     'I'
     mov     [gs:((80 * 0 + 70) * 2)],   ax
+    iretd
+
+;; --------------------------------------------------------------------------------
+_ClockHandler:
+ClockHandler        equ     _ClockHandler - $$
+    inc     word[gs:((80 * 0 + 60) * 2)]    ; 在第0行60列处，字符不断地变化，同时颜色(属性)也在不停变换
+    mov     al,     20h
+    out     20h,    al      ; 发送EOI
     iretd
 
 ;; --------------------------------------------------------------------------------
