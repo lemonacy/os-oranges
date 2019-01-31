@@ -37,7 +37,7 @@ LABEL_DESC_STACK3:      Descriptor          0,           TopOfStack3,           
 LABEL_DESC_TSS:         Descriptor          0,            TSSLen - 1,               DA_386TSS
 ; 分页
 LABEL_DESC_PAGE_DIR:    Descriptor  PageDirBase,                4095,               DA_DRW                  ; Page Directory，4K的段
-LABEL_DESC_PAGE_TBL:    Descriptor  PageTblBase,                1023,               DA_DRW | DA_LIMIT_4K    ; Page Tables   ，4M的段(1024*4K)
+LABEL_DESC_PAGE_TBL:    Descriptor  PageTblBase,         4096 * 8 -1,               DA_DRW                  ; Page Tables   ，32K（8个页表，每个页表设置1024*4K=4M的内存）
 ; GDT结束
 
 GdtLen      equ     $ - LABEL_GDT       ; GDT长度
@@ -445,12 +445,23 @@ TestWrite:
 
 ; 启动分页机制 --------------------------------------------------------------------------------
 SetupPaging:
+    ; 根据实际内存大小计算应初始化多少PDE以及多少页表
+    xor     edx,    edx
+    mov     eax,    [dwMemSize]
+    mov     ebx,    400000h     ; 400000h = 4M = 4096 * 1024，一个页表对应的内存大小
+    div     ebx                 ; eax - 商, edx - 余数
+    mov     ecx,    eax         ; 此时ecx为页表的个数，即PDE的个数
+    test    edx,    edx         ; edx - 余数
+    jz      .no_remainder
+    inc     ecx                 ; 如果余数不为0，则需要多加一个页表项
+.no_remainder:
+    push    ecx
+
     ; 为了简化处理，所有线性地址对应相等的物理地址
 
     ; 首先初始化页目录
     mov ax,     SelectorPageDir
     mov es,     ax
-    mov ecx,    1024    ; 共1024个表项
     xor edi,    edi
     xor eax,    eax
     mov eax,    PageTblBase | PG_P | PG_USU | PG_RWW
@@ -459,10 +470,13 @@ SetupPaging:
     add eax,    4096    ; 为了简化，所有页表在内存中是连续的
     loop    .1
 
-    ; 再初始化所有页表（1K个，4M内存空间）
+    ; 再初始化所有页表
     mov ax,     SelectorPageTbl
     mov es,     ax
-    mov ecx,    1024 * 1024 ; 共1M个页表项，也即有1M个项，覆盖1M*4K=4G内存空间
+    pop eax             ; 页表个数
+    mov ebx,    1024    ; 每个页表1024个PTE
+    mul ebx
+    mov ecx,    eax     ; PTE = PDE * 1024
     xor edi,    edi
     xor eax,    eax
     mov eax,    0 | PG_P | PG_USU | PG_RWW  ; 从内存地址0开始计算
