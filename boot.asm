@@ -38,6 +38,16 @@ LABEL_START:
     mov     ss, ax
     mov     sp, BaseOfStack
 
+    ; 清屏
+    mov     ax,     0600h   ; ah = 6h, al = 0h
+    mov     bx,     0700h   ; 黑底白字(BL=07h)
+    mov     cx,     0       ; 左上角(0,0)
+    mov     dx,     0184fh  ; 右下角(80,50)
+    int     10h             ; int 10h
+
+    mov     dh,     0       ; 序号0，字符串“Booting  ”
+    call    DispStr
+
     ; 寻找loader.bin
     xor     ah,     ah  ; '.
     xor     dl,     dl  ;  | 软驱复位
@@ -96,7 +106,7 @@ LABEL_NO_LOADERBIN:
     mov     ax,     4c00h
     int     21h                             ; 没有找到loader.bin，回到DOS
 %else
-    jmp     $
+    jmp     $                               ; 没有找到loader.bin，suspending
 %endif
 
 LABEL_FILENAME_FOUND:                       ; 找到loader.bin后便来到这里继续
@@ -136,7 +146,11 @@ LABEL_GOON_LOADING_FILE:
     add     bx,     [BPB_BytsPerSec]        ; 目标缓冲区es:bx后移512个字符，准备接收下一次ReadSector
     jmp     LABEL_GOON_LOADING_FILE
 LABEL_FILE_LOADED:
-    jmp     $
+    mov     dh,     1                       ; 序号1的字符串“Ready.  ”
+    call    DispStr
+
+    jmp     BaseOfLoader:OffsetOfLoader     ; 这一句正式跳转到已加载到内存中的loader.bin的开始处，开始执行loader.bin的代码。Boot Sector的使命到此结束。
+; ======================================== Boot Sector 结束 ========================================
 
 DispStr:
     mov     ax, MessageLenght
