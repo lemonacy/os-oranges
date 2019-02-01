@@ -28,6 +28,8 @@ BaseOfLoader    equ     09000h      ; loader.bin被加载到的位置 --- 段地
 OffsetOfLoader  equ     0100h       ; loader.bin被加载到的位置 --- 偏移地址
 RootDirSectors  equ     14          ; 根目录占用空间
 SectorNoOfRootDirectory equ     19  ; Root Directory的第一个扇区
+SectorNoOfFAT1  equ     1           ; FAT1的第一个扇区号 = BPB_RsvdSecCnt
+DeltaSectorNo   equ     17          ; 根目录区的第一个扇区号为19，又由于数据区开始的第一个扇区号为2，所以我们定义宏17=19-2
 
 LABEL_START:
     mov     ax, cs
@@ -74,7 +76,7 @@ LABEL_CMP_FILENAME:
     jmp     LABEL_DIFFERENT                 ; 只要发现不一样的字符就表明本DirectoryEntry不是我们要找的loader.bin
 
 LABEL_GO_ON:
-    inc     di 
+    inc     di
     jmp     LABEL_CMP_FILENAME              ; 继续循环比较FILENAME
 
 LABEL_DIFFERENT:
@@ -98,13 +100,48 @@ LABEL_NO_LOADERBIN:
 %endif
 
 LABEL_FILENAME_FOUND:                       ; 找到loader.bin后便来到这里继续
+    mov     ax,     RootDirSectors          ; 14
+    and     di,     0FFE0h                  ; di -> 当前条目的开始
+    add     di,     01Ah                    ; di -> 首Sector，01Ah偏移处为2个字节的DIR_FstClus(开始簇号)
+    mov     cx,     word[es:di]             ; DIR_FstClus占2个字节，所以读word
+    push    cx                              ; 保存此Sector在FAT中的序号
+    ; 下面计算DIR_FstClus对应的真实扇区号：X + RootDirSectors + 19 - 2
+    add     cx,     ax                      ; cx + 14
+    add     cx,     DeltaSectorNo           ; cx + 19 - 2, cl <- loader.bin数据所在的真实扇区号(0-based).
 
+    mov     ax,     BaseOfLoader
+    mov     es,     ax
+    mov     bx,     OffsetOfLoader          ; es:bx loader.bin将被加载到的目标内存区
+    mov     ax,     cx                      ; ax: Sector号
+LABEL_GOON_LOADING_FILE:
+    push    ax                              ; '.
+    push    bx                              ;  |
+    mov     ah,     0Eh                     ;  | 每读一个扇区就在“Booting  ”后面
+    mov     al,     '.'                     ;  | 打一个点，形成这样的效果：
+    mov     bl,     0Fh                     ;  | Booting  ........
+    int     10h                             ;  |
+    pop     bx                              ;  |
+    pop     ax                              ; /
+
+    mov     cl,     1                       ; 读取一个扇区
+    call    ReadSector
+    pop     ax
+    call    GetFATEntry                     ; 取出此Sector在FAT中的序号，在文件占用多个扇区的情况下，判断是否读完
+    cmp     ax,     0FFFh
+    jz      LABEL_FILE_LOADED
+    push    ax                              ; 保存Sector在FAT中的序号
+    mov     dx,     RootDirSectors          ; '.
+    add     ax,     dx                      ;  | X + 14 + 19 - 2
+    add     ax,     DeltaSectorNo           ; / ax:下一个数据扇区Sector号
+    add     bx,     [BPB_BytsPerSec]        ; 目标缓冲区es:bx后移512个字符，准备接收下一次ReadSector
+    jmp     LABEL_GOON_LOADING_FILE
+LABEL_FILE_LOADED:
     jmp     $
 
 DispStr:
     mov     ax, MessageLenght
     mul     dh          ; 字符串序号
-    add     ax, BootMessage 
+    add     ax, BootMessage
     mov     bp, ax      ; '.
     mov     ax, ds      ;  | ES:BP = string address
     mov     es, ax      ; /
@@ -143,6 +180,49 @@ ReadSector:
     pop     bp
 
     ret
+
+GetFATEntry:
+    push    es
+    push    bx
+    push    ax                      ; 文件数据所在的真实扇区号
+    mov     ax,     BaseOfLoader    ; '.
+    sub     ax,     0100h           ;  | 在BaseOfLoader后面留出4K空间用于存放FAT（这里减的是段地址，真实地址还要shl 4, 即1000=4k，高地址在前，低地址在后，所以这里说“后”）
+    mov     es,     ax              ; /  es:bx = 08F00:0000
+
+    ; Sector# * 3 / 2 即得到改扇区在FAT表中的开始字节，可能是整数，也有可能是x.5的小数
+    pop     ax                      ; 真实Sector号
+    mov     byte[bOdd],     0
+    mov     bx,     3
+    mul     bx                      ; dx:ax = ax * 3
+    mov     bx,     2
+    div     bx                      ; dx:ax / 2  ===> ax:商，dx:余数
+
+    cmp     dx,     0               ; 如果没有余数(.5小数)，则说明该扇区在FAT里边刚好是在一个字节的开始处（如果有余数的话，则说明开始处在半个字节处）
+    jz      LABEL_EVEN
+    mov     byte[bOdd],     1
+LABEL_EVEN: ; 偶数
+    ; 现在ax中是FATEntry在FAT中的偏移量，下面来计算FATEntry在哪个扇区中（FAT占用不止一个扇区）
+    xor     dx,     dx
+    mov     bx,     [BPB_BytsPerSec]    ; 512
+    div     bx                          ; dx:ax / BPB_BytsPerSec, ax:商（FATEntry所在扇区相对于FAT的扇区号）dx:余数（FATEntry在扇区内的偏移）
+    push    dx
+    mov     bx,     0                   ; bx <- 0 于是，es:bx = (BaseOfLoader - 100):0000，缓冲区首地址
+    add     ax,     SectorNoOfFAT1      ; ax = ax + 1 此句之后的ax就是FATEntry所在的扇区号
+    mov     cl,     2                   ; 一次读取2个扇区
+    call    ReadSector                  ; 读取FATEntry所在的扇区，一个读2个，避免在边界发生错误，因为一个FATEntry可能跨越2个扇区
+    pop     dx                          ; dx余数（偏移）
+    add     bx,     dx                  ; 加偏移
+    mov     ax,     [es:bx]             ; 读2个字节
+    cmp     byte[bOdd],     1           ; 如果是半字节开始，要去掉高4位
+    jnz     LABEL_ODD
+    shr     ax,     4                   ; 如果是字节开始，则去掉低4位
+LABEL_ODD:
+    and     ax,     0FFFh               ; 如果是半字节开始，则去掉高4位
+
+LABEL_GET_FAT_ENTRY_OK:
+    pop     bx
+    pop     es
+    ret                                 ; 结果在ax中返回
 
 ; 变量
 wRootDirSizeForLoop dw  RootDirSectors  ; Root Directory占用的扇区数，在循环中会递减至0
