@@ -1,3 +1,6 @@
+; $ brew install nasm
+; $ nams boot.asm -o boot.bin
+
     org     07c00h      ; 告诉编译器程序加载到7c00处
     jmp     short LABEL_START
     nop                 ; 这个nop不可少
