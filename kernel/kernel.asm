@@ -1,5 +1,5 @@
 ; $ nasm -f elf kernel.asm -o kernel.o
-; $ i386-elf-ld -s kernel.o -o kernel.bin
+; $ i386-elf-ld -s -Ttext 0x30400 kernel.o -o kernel.bin
 
 [section .text]
 
