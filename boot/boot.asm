@@ -5,8 +5,8 @@
     jmp     short LABEL_START
     nop                 ; 这个nop不可少
 
-%include    "include/fat12hdr.inc"
-%include    "include/load.inc"
+%include    "fat12hdr.inc"
+%include    "load.inc"
 
 BaseOfStack     equ     07c00h      ; 堆栈基地址（栈底，从这个位置向低地址生长）
 

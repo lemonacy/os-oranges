@@ -7,9 +7,9 @@ BaseOfStack         equ     0100h
     jmp     short LABEL_START
 
 ; 下面是FAT12磁盘的头，之所以包含它是因为下面用到了磁盘的一些信息
-%include    "include/fat12hdr.inc"
-%include    "include/pm.inc"
-%include    "include/load.inc"
+%include    "fat12hdr.inc"
+%include    "pm.inc"
+%include    "load.inc"
 
 ; GDT
 ;                                         段基址,                   段界限,                属性
@@ -326,7 +326,7 @@ LABEL_PM_START:
 
     jmp     SelectorFlatC:KernelEntryPointPhyAddr   ; 正式进入内核
 
-%include    "include/lib.inc"
+%include    "lib.inc"
 
 ;; 显示内存信息
 DispMemSize:
