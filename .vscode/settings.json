@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "proto.h": "c",
+        "const.h": "c",
+        "type.h": "c",
+        "global.h": "c"
+    }
+}
