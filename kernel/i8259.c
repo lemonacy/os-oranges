@@ -29,8 +29,14 @@ PUBLIC void init_8259A()
     out_byte(INT_S_CTLMASK, 0x1);   // 指定为80x86模式
 
     /* Master 8259, OCW1. */
-    out_byte(INT_M_CTLMASK, 0xFF);  // 全屏蔽
+    out_byte(INT_M_CTLMASK, 0xFD);  // 只开启IRQ1 - 键盘中断
 
     /* Slave 8259, OCW1. */
     out_byte(INT_S_CTLMASK, 0xFF);  // 全屏蔽
+}
+
+PUBLIC void spurious_irq(int irq) {
+    disp_str("spurious_irq: ");
+    disp_int(irq);
+    disp_str("\n");
 }
