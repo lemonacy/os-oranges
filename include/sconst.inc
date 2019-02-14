@@ -26,3 +26,11 @@ TSS3_S_SP0      equ     4
 ; 以下选择子值必须与protect.h中保持一致！！！
 SELECTOR_KERNEL_CS      equ     0x08    ; LOADER里边已经确认
 SELECTOR_TSS            equ     0x20    ; TSS
+
+
+INT_M_CTL       equ     0x20    ; I/O port for interrupt controller <Master>
+INT_M_CTLMASK   equ     0x21    ; setting bits in this port disable ints <Master>
+INT_S_CTL       equ     0xA0    ; I/O port for interrupt controller <Slave>
+INT_S_CTLMASK   equ     0xA1    ; setting bits in this port disable ints <Slave>
+
+EOI             equ     0x20

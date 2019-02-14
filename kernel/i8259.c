@@ -29,7 +29,7 @@ PUBLIC void init_8259A()
     out_byte(INT_S_CTLMASK, 0x1);   // 指定为80x86模式
 
     /* Master 8259, OCW1. */
-    out_byte(INT_M_CTLMASK, 0xFD);  // 只开启IRQ1 - 键盘中断
+    out_byte(INT_M_CTLMASK, 0xFE);  // 只开启IRQ0 - 开启时钟中断
 
     /* Slave 8259, OCW1. */
     out_byte(INT_S_CTLMASK, 0xFF);  // 全屏蔽

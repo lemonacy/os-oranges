@@ -17,10 +17,14 @@ extern idt_ptr
 extern p_proc_ready
 extern tss
 extern disp_pos
+extern disp_str
 
 [section .bss]
-StackSpace  resb    2 * 1024
+StackSpace  resb    2 * 1024        ; 内核栈
 StackTop:                           ; 栈顶
+
+[section .data]
+clock_int_msg   db  "^",    0
 
 [section .text]
 
@@ -106,7 +110,7 @@ restart:
     pop     ds
     popad
 
-    add     esp,    4
+    add     esp,    4   ; 跳过进程表的retaddr，堆栈接下来的内容为：eip, cs, eflags, esp, ss
 
     iretd   ; 进入第一个进程
 
@@ -187,6 +191,39 @@ exception:
 
 ALIGN   16
 hwint00:                           ; Interrupt routine for irq 0 (the click)
+    sub     esp,    4              ; 跳过retaddr
+
+    pushad
+    push    ds
+    push    es
+    push    fs
+    push    gs
+    mov     dx,     ss
+    mov     ds,     dx
+    mov     es,     dx
+
+    mov     esp,    StackTop        ; 切刀内核栈
+
+    ; inc     byte[gs:0]
+    push    clock_int_msg
+    call    disp_str
+    add     esp,    4
+
+    mov     al,         EOI         ; reenable master 8259
+    out     INT_M_CTL,  al          ; 为了让时钟中断可以不停地发生而不是只发生一次，需要设置EOI
+
+    mov     esp,    [p_proc_ready]  ; 离开内核栈
+
+    lea     eax,                        [esp + P_STACKTOP]
+    mov     dword[tss + TSS3_S_SP0],    eax
+
+    pop     gs
+    pop     fs
+    pop     es
+    pop     ds
+    popad
+    add     esp,    4              ; 让栈顶指向eip处，以便下面指向iretd
+
     iretd
 
 ALIGN   16

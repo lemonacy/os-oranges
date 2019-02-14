@@ -4,7 +4,7 @@
 #include "type.h"
 #include "protect.h"
 
-typedef struct s_stackframe /* 作为从task -> 内核态时的内核态堆栈(TSS的esp0) */
+typedef struct s_stackframe /* 作为从task -> 内核态时的临时ring0堆栈(TSS的esp0) */
 {
     u32 gs;         /* \                                    */
     u32 fs;         /* |                                    */
