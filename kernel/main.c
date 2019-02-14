@@ -35,6 +35,7 @@ PUBLIC int kernel_main()
     p_proc->regs.eflags = 0x1202; // IF=1, IOPL=1, bit 2 is always 1.
 
     p_proc_ready = proc_table;
+    k_reenter = -1;
     restart();
 
     while (1)
