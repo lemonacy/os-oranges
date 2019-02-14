@@ -8,7 +8,11 @@ PUBLIC void disp_str(char *info);
 PUBLIC void disp_color_str(char *info, int color);
 PUBLIC void disp_int(int input);
 
+PUBLIC void delay(int time);
+
 PUBLIC char *itoa(char *str, int num);
 
 PUBLIC void init_prot();
 PUBLIC void init_8259A();
+
+PUBLIC u32 seg2phys(u16 seg);

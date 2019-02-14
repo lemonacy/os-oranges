@@ -3,16 +3,20 @@
 ; 为什么是0x30400? 因为ELF header等信息占了0x400的空间，而这些空间又属于第一个Program Header的范畴（可通过readelf -l 看到第一个Program Header的p_vaddr是0x30000）,
 ; 为了保证程序的入口地址是0x30400，所以我们要将内核复制到0x30400 - 0x400 = 0x30000处，保证和Program header里边的p_vaddr吻合
 
-SELECTOR_KERNEL_CS      equ     8
+%include "sconst.inc"
 
 ; 导入函数
 extern cstart
 extern exception_handler
 extern spurious_irq
+extern kernel_main
 
 ; 导入全局变量
 extern gdt_ptr
 extern idt_ptr
+extern p_proc_ready
+extern tss
+extern disp_pos
 
 [section .bss]
 StackSpace  resb    2 * 1024
@@ -21,6 +25,7 @@ StackTop:                           ; 栈顶
 [section .text]
 
 global _start                       ; i386-elf-ld链接的时候必须要有_start导出符号
+global restart
 
 global divide_error
 global single_step_exception
@@ -78,9 +83,32 @@ csinit:
 
     ; ud2
     ; jmp     0x40:0
-    sti                             ; 置IF位，开启8259A可屏蔽中断
 
-    hlt
+    ; 此处注释掉sti,在通过iretd进入第一个进程的时候会自动开启，因为在第一个进程的进程表中eflags的IF被置位为1（详见main.c::kernel_main()）
+    ; sti                             ; 置IF位，开启8259A可屏蔽中断
+
+    ; 加载第一个任务的TSS
+    xor     eax,    eax
+    mov     ax,     SELECTOR_TSS
+    ltr     ax
+
+    jmp     kernel_main
+
+restart:
+    mov     esp,    [p_proc_ready]
+    lldt    [esp + P_LDT_SEL]
+    lea     eax,    [esp + P_STACKTOP]
+    mov     dword[tss + TSS3_S_SP0],    eax
+
+    pop     gs
+    pop     fs
+    pop     es
+    pop     ds
+    popad
+
+    add     esp,    4
+
+    iretd   ; 进入第一个进程
 
 ; 中断和异常 - 异常
 divide_error:
@@ -159,7 +187,7 @@ exception:
 
 ALIGN   16
 hwint00:                           ; Interrupt routine for irq 0 (the click)
-    hwint_master    0
+    iretd
 
 ALIGN   16
 hwint01:                           ; Interrupt routine for irq 1 (keyboard)

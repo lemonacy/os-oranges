@@ -4,6 +4,7 @@
 #include "const.h"
 #include "type.h"
 #include "protect.h"
+#include "proc.h"
 
 /* EXTERN is defined as extern except in global.c */
 #ifdef GLOBAL_VARIABLES_HERE
@@ -20,5 +21,11 @@ EXTERN u8 gdt_ptr[6]; /* 0~15 limit; 16~47 base */
 EXTERN DESCRIPTOR gdt[GDT_SIZE];
 EXTERN u8 idt_ptr[6]; /* 0~15 limit; 16~47 base */
 EXTERN GATE idt[IDT_SIZE];
+
+EXTERN TSS tss;
+EXTERN PROCESS *p_proc_ready;
+
+extern PROCESS proc_table[];
+extern char task_stack[];
 
 #endif /* _ORANGES_GLOBAL_H_ */

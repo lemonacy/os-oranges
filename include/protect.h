@@ -24,14 +24,59 @@ typedef struct s_gate /* 共8个字节 */
     u16 offset_high;
 } GATE;
 
+typedef struct s_tss
+{
+    u32 backlink;
+    u32 esp0; /* stack point to use during interrupt */
+    u32 ss0;
+    u32 esp1;
+    u32 ss1;
+    u32 esp2;
+    u32 ss2;
+    u32 cr3;
+    u32 eip;
+    u32 flags;
+    u32 eax;
+    u32 ecx;
+    u32 edx;
+    u32 ebx;
+    u32 esp;
+    u32 ebp;
+    u32 esi;
+    u32 edi;
+    u32 es;
+    u32 cs;
+    u32 ss;
+    u32 ds;
+    u32 fs;
+    u32 gs;
+    u32 ldt;
+    u16 trap;
+    u16 iobase; /* I/O位图基址大于或等于TSS段界限，就表示没有I/O许可位图 */
+} TSS;
+
+/* 描述符索引 */
+#define INDEX_DUMMY 0
+#define INDEX_FLAT_C 1
+#define INDEX_FLAT_RW 2
+#define INDEX_VIDEO 3
+#define INDEX_TSS 4
+#define INDEX_LDT_FIRST 5
+
 /* 选择子(LOADER中已经确定了的) */
 #define SELECTOR_DUMMY 0x0
 #define SELECTOR_FLAT_C 0x08
 #define SELECTOR_FLAT_RW 0x10
 #define SELECTOR_VIDEO (0x18 + 3) // RPL=3
+#define SELECTOR_TSS 0x20
+#define SELECTOR_LDT_FIRST 0x28
 
 #define SELECTOR_KERNEL_CS SELECTOR_FLAT_C
 #define SELECTOR_KERNEL_DS SELECTOR_FLAT_RW
+#define SELECTOR_KERNEL_GS SELECTOR_VIDEO
+
+/* 每个任务有一个单独的LDT，每个LDT中的描述符个数： */
+#define LDT_SIZE 2
 
 /* 描述符类型 */
 #define DA_32 0x4000       // 32位段
@@ -58,9 +103,11 @@ typedef struct s_gate /* 共8个字节 */
 #define DA_386IGate 0x8E // 386中断门类型值
 #define DA_386TGate 0x8F // 386陷阱门类型值
 
+#define SA_TI_MASK 0xFFFB
 #define SA_TLG 0x0 // GDT描述符标识
 #define SA_TIL 0x4 // LDT描述符标识
 
+#define SA_RPL_MASK 0xFFFC
 #define SA_RPL0 0x0 // RPL = 0
 #define SA_RPL1 0x1 // RPL = 1
 #define SA_RPL2 0x2 // RPL = 2
@@ -96,3 +143,6 @@ typedef struct s_gate /* 共8个字节 */
 #define INT_VECTOR_IRQ8 0x28
 
 #endif /* _ORANGES_PROTECT_H_ */
+
+/* 线性地址 -> 物理地址 */
+#define vir2phys(seg_base, vir) (u32)(((u32)seg_base) + (u32)(vir))
