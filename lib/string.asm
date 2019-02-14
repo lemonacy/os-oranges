@@ -2,6 +2,7 @@
 
 global  memcpy
 global  memset
+global  strcpy
 
 
 ; --------------------------------------------------------------------------------
@@ -74,4 +75,28 @@ memset:
     mov     esp,    ebp
     pop     ebp
 
+    ret
+
+; --------------------------------------------------------------------------------
+; char *strcpy(char *p_dest, char *p_src);
+; --------------------------------------------------------------------------------
+strcpy:
+    push    ebp
+    mov     ebp,    esp
+
+    mov     esi,    [ebp + 12]  ; src
+    mov     edi,    [ebp + 8]   ; dst
+
+.1:
+    mov     al,     [esi]
+    inc     esi
+    mov     byte[edi], al
+    inc     edi
+
+    cmp     al,     0       ; 是否字符串结尾'\0'
+    jnz     .1
+
+    mov     eax,    [ebp + 8]   ; 返回值
+
+    pop     ebp
     ret

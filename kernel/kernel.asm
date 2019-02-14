@@ -12,6 +12,7 @@ extern spurious_irq
 extern kernel_main
 extern disp_str
 extern delay
+extern clock_handler
 
 ; 导入全局变量
 extern gdt_ptr
@@ -104,7 +105,7 @@ restart:
     mov     esp,    [p_proc_ready]
     lldt    [esp + P_LDT_SEL]
     lea     eax,    [esp + P_STACKTOP]
-    mov     dword[tss + TSS3_S_SP0],    eax
+    mov     dword[tss + TSS3_S_SP0],    eax     ; 以便第一次中断发生的时候，发生ring1 -> ring0特权级变换，能切换到正确的ring0堆栈
 
     pop     gs
     pop     fs
@@ -193,7 +194,7 @@ exception:
 
 ALIGN   16
 hwint00:                           ; Interrupt routine for irq 0 (the click)
-    sub     esp,    4              ; 跳过retaddr
+    sub     esp,    4              ; 跳过retaddr（ss,esp,eflags,cs,eip已经由CPU自动压栈了）
 
     pushad
     push    ds
@@ -217,20 +218,20 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
 
     sti                             ; 开启中断嵌套
 
-    push    clock_int_msg
-    call    disp_str
+    push    0
+    call    clock_handler
     add     esp,    4
 
-    push    1
-    call    delay
-    add     esp,    4
+    ; push    1
+    ; call    delay
+    ; add     esp,    4
 
     cli                             ; 关闭嵌套中断
 
     mov     esp,    [p_proc_ready]  ; 离开内核栈
-
+    lldt    [esp + P_LDT_SEL]
     lea     eax,                        [esp + P_STACKTOP]
-    mov     dword[tss + TSS3_S_SP0],    eax
+    mov     dword[tss + TSS3_S_SP0],    eax ; tss.esp0存放本次中断要返回的任务在下次被中断时的ring0堆栈，以便在中断发生时，正确地保留任务的状态
 
 .re_enter:  ; 如果k_reenter != 0(好比等于1)，则会调到这里
     dec     dword[k_reenter]

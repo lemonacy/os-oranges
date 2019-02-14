@@ -29,5 +29,5 @@ EXTERN int k_reenter;
 
 extern PROCESS proc_table[];
 extern char task_stack[];
-
+extern TASK task_table[];
 #endif /* _ORANGES_GLOBAL_H_ */

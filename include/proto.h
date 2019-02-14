@@ -16,3 +16,7 @@ PUBLIC void init_prot();
 PUBLIC void init_8259A();
 
 PUBLIC u32 seg2phys(u16 seg);
+
+void TestA();
+void TestB();
+void TestC();

@@ -85,7 +85,15 @@ PUBLIC void init_prot()
     init_idt_desc(INT_VECTOR_IRQ8 + 7, DA_386IGate, hwint15, PRIVILEGE_KRNL);
 
     // 填充GDT中进程LDT的描述符
-    init_descriptor(&gdt[INDEX_LDT_FIRST], vir2phys(seg2phys(SELECTOR_KERNEL_DS), proc_table[0].ldts), LDT_SIZE * sizeof(DESCRIPTOR) - 1, DA_LDT);
+    int i;
+    PROCESS *p_proc = proc_table;
+    u16 selector_ldt = INDEX_LDT_FIRST << 3;
+    for (i = 0; i < NR_TASKS; i++)
+    {
+        init_descriptor(&gdt[selector_ldt >> 3], vir2phys(seg2phys(SELECTOR_KERNEL_DS), proc_table[i].ldts), LDT_SIZE * sizeof(DESCRIPTOR) - 1, DA_LDT);
+        p_proc++;
+        selector_ldt += 1 << 3;
+    }
     // 填充任务的TSS
     memset(&tss, 0, sizeof(tss));
     tss.ss0 = SELECTOR_KERNEL_DS;
@@ -116,10 +124,9 @@ PRIVATE void init_descriptor(DESCRIPTOR *p_desc, u32 base, u32 limit, u16 attrib
 
 PUBLIC u32 seg2phys(u16 seg)
 {
-    DESCRIPTOR * p_dest = &gdt[seg >> 3];
+    DESCRIPTOR *p_dest = &gdt[seg >> 3];
     return (p_dest->base_high << 24 | p_dest->base_mid << 16 | p_dest->base_low);
 }
-
 
 /*================================================================================
                                 exception_handler
