@@ -5,6 +5,7 @@
 #include "global.h"
 
 void restart();
+void enable_irq(int irq);
 
 PUBLIC int kernel_main()
 {
@@ -50,6 +51,10 @@ PUBLIC int kernel_main()
 
     p_proc_ready = proc_table;
     k_reenter = 0;  // 由于在第一次中断发生之前（kernal.asm::_start::restart_reenter）就执行了一次减一操作，所以这个地方的初始化要修改为0
+
+    put_irq_handler(CLOCK_IRQ, clock_handler);  /* 设定时钟中断处理程序 */
+    enable_irq(CLOCK_IRQ);                      /* 然8259A可以接受时钟中断 */
+
     restart();
 
     while (1)

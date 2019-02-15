@@ -21,6 +21,7 @@ extern p_proc_ready
 extern tss
 extern disp_pos
 extern k_reenter
+extern irq_table
 
 [section .bss]
 StackSpace  resb    2 * 1024        ; 内核栈
@@ -186,35 +187,27 @@ exception:
 ; 中断和异常 - 硬件中断
 ; ------------------------------
 %macro hwint_master 1
+    call    save
+    in      al,             INT_M_CTLMASK
+    or      al,             (1 << %1)
+    out     INT_M_CTLMASK,  al
+    mov     al,             EOI
+    out     INT_M_CTL,      al
+    sti     ; CPU在响应中断的过程中会自动关中断，这句之后就允许响应新的中断
     push    %1
-    call    spurious_irq
-    add     esp,    4
-    hlt
+    call    [irq_table + 4 * %1]    ; 中断处理程序
+    pop     ecx
+    cli
+    in      al,             INT_M_CTLMASK
+    and     al,             ~(1 << %1)
+    out     INT_M_CTLMASK,  al
+    ret
 %endmacro
 ; ------------------------------
 
 ALIGN   16
 hwint00:                            ; Interrupt routine for irq 0 (the click)
-    call    save                    ; 用save代替原来的一堆push
-
-    in      al,         INT_M_CTLMASK
-    or      al,         1
-    out     INT_M_CTLMASK,  al      ; 不允许在发生时钟中断
-
-    mov     al,         EOI         ; reenable master 8259
-    out     INT_M_CTL,  al          ; 为了让时钟中断可以不停地发生而不是只发生一次，需要设置EOI
-
-    sti                             ; 开启中断嵌套（允许其它中断发生）
-    push    0
-    call    clock_handler
-    add     esp,    4
-    cli                             ; 关闭嵌套中断（关闭所有中断）
-
-    in      al,         INT_M_CTLMASK
-    and     al,         0xFE
-    out     INT_M_CTLMASK,  al      ; 又允许时钟中断发生
-
-    ret                             ; 重入时返回到.restart_reenter_v2，通常情况下(非重入)返回到.restart_v2。注：ret - 短返回，只从堆栈中pop出EIP
+    hwint_master    0
 
 ;; 对比下面的代码和_start中的restart+restart_reenter，除了标号的名字不同外，其余都是相同的，我们完全可以删掉其中的一段，同时修改用到的标号
 ; .restart_v2:

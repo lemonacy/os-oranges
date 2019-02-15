@@ -9,4 +9,6 @@ typedef void (*int_handler)();
 
 typedef void (*task_f)();
 
+typedef void (*irq_handler)(int irq);
+
 #endif

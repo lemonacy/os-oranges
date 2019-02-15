@@ -24,4 +24,7 @@
 #define INT_S_CTL 0xA0     /* I/O port for interrupt controller - Slave */
 #define INT_S_CTLMASK 0xA1 /* setting bits in this port disables ints - Slave */
 
+#define NR_IRQ 16 /* 对应主从两个8259A */
+#define CLOCK_IRQ 0
+
 #endif /* _ORANGES_CONST_H_ */
