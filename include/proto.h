@@ -9,6 +9,7 @@ PUBLIC void disp_color_str(char *info, int color);
 PUBLIC void disp_int(int input);
 
 PUBLIC void delay(int time);
+PUBLIC void milli_delay(int milli_sec);
 
 PUBLIC char *itoa(char *str, int num);
 
