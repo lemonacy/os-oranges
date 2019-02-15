@@ -205,7 +205,6 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
     mov     ds,     dx
     mov     es,     dx
 
-    mov     esp,    StackTop        ; 切刀内核栈
 
     ; inc     byte[gs:0]
 
@@ -214,36 +213,44 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
 
     inc     dword[k_reenter]
     cmp     dword[k_reenter],   0
-    jne     .re_enter               ; 如果是中断重入，则不再开启中断嵌套
+    ; jne     .re_enter               ; 如果是中断重入，则不再开启中断嵌套
+    jne     .1                      ; 重入时跳转到.1，通常情况下顺序执行
 
+    mov     esp,    StackTop        ; 非重入时才切刀内核栈
+
+    push    .restart_v2             ; 指定非重入时，下面ret的返回地址是restart_v2，需要执行mov,lldt,lea,mov指令
+    jmp     .2
+.1:                                 ; 中断重入
+    push    .restart_reenter_v2     ; 指定重入时，下面ret的返回地址是restart_reenter_v2，不需要执行下面的mov,lldt,lea,mov指令，因为最外层的中断（第一次进入的中断）会负责做这部分工作
+.2:                                 ; 没有中断重入
     sti                             ; 开启中断嵌套
 
     push    0
-    call    clock_handler
+    call    clock_handler           ; 不管重入还是非重入，clock_handler都会被执行，所以需要在clock_handler里边处理是否重入的问题
     add     esp,    4
-
-    ; push    1
-    ; call    delay
-    ; add     esp,    4
 
     cli                             ; 关闭嵌套中断
 
-    mov     esp,    [p_proc_ready]  ; 离开内核栈
-    lldt    [esp + P_LDT_SEL]
-    lea     eax,                        [esp + P_STACKTOP]
-    mov     dword[tss + TSS3_S_SP0],    eax ; tss.esp0存放本次中断要返回的任务在下次被中断时的ring0堆栈，以便在中断发生时，正确地保留任务的状态
+    ret                             ; 重入时返回到.restart_reenter_v2，通常情况下(非重入)返回到.restart_v2。注：ret - 短返回，只从堆栈中pop出EIP
 
-.re_enter:  ; 如果k_reenter != 0(好比等于1)，则会调到这里
-    dec     dword[k_reenter]
+ .restart_v2:
+     mov     esp,    [p_proc_ready]  ; 离开内核栈
+     lldt    [esp + P_LDT_SEL]
+     lea     eax,                        [esp + P_STACKTOP]
+     mov     dword[tss + TSS3_S_SP0],    eax ; tss.esp0存放本次中断要返回的任务在下次被中断时的ring0堆栈，以便在中断发生时，正确地保留任务的状态
 
-    pop     gs
-    pop     fs
-    pop     es
-    pop     ds
-    popad
-    add     esp,    4              ; 让栈顶指向eip处，以便下面指向iretd
+ .restart_reenter_v2:                ; 如果k_reenter != 0，会跳转到这里
+ ; .re_enter:  ; 如果k_reenter != 0(好比等于1)，则会调到这里
+     dec     dword[k_reenter]
 
-    iretd
+     pop     gs
+     pop     fs
+     pop     es
+     pop     ds
+     popad
+     add     esp,    4              ; 让栈顶指向eip处，以便下面指向iretd
+
+     iretd
 
 ALIGN   16
 hwint01:                           ; Interrupt routine for irq 1 (keyboard)
