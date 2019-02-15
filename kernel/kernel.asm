@@ -106,7 +106,8 @@ restart:
     lldt    [esp + P_LDT_SEL]
     lea     eax,    [esp + P_STACKTOP]
     mov     dword[tss + TSS3_S_SP0],    eax     ; 以便第一次中断发生的时候，发生ring1 -> ring0特权级变换，能切换到正确的ring0堆栈
-
+restart_reenter:
+    dec     dword[k_reenter]                    ; 在进程第一次运行之前就-1了，所以main.c中对k_reenter的初始化要从-1改为0，这里减1就变为期望的-1了
     pop     gs
     pop     fs
     pop     es
@@ -205,7 +206,6 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
     mov     ds,     dx
     mov     es,     dx
 
-
     ; inc     byte[gs:0]
 
     mov     al,         EOI         ; reenable master 8259
@@ -218,10 +218,10 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
 
     mov     esp,    StackTop        ; 非重入时才切刀内核栈
 
-    push    .restart_v2             ; 指定非重入时，下面ret的返回地址是restart_v2，需要执行mov,lldt,lea,mov指令
+    push    restart                 ; 指定非重入时，下面ret的返回地址是restart_v2，需要执行mov,lldt,lea,mov指令
     jmp     .2
 .1:                                 ; 中断重入
-    push    .restart_reenter_v2     ; 指定重入时，下面ret的返回地址是restart_reenter_v2，不需要执行下面的mov,lldt,lea,mov指令，因为最外层的中断（第一次进入的中断）会负责做这部分工作
+    push    restart_reenter         ; 指定重入时，下面ret的返回地址是restart_reenter_v2，不需要执行下面的mov,lldt,lea,mov指令，因为最外层的中断（第一次进入的中断）会负责做这部分工作
 .2:                                 ; 没有中断重入
     sti                             ; 开启中断嵌套
 
@@ -233,25 +233,26 @@ hwint00:                           ; Interrupt routine for irq 0 (the click)
 
     ret                             ; 重入时返回到.restart_reenter_v2，通常情况下(非重入)返回到.restart_v2。注：ret - 短返回，只从堆栈中pop出EIP
 
- .restart_v2:
-     mov     esp,    [p_proc_ready]  ; 离开内核栈
-     lldt    [esp + P_LDT_SEL]
-     lea     eax,                        [esp + P_STACKTOP]
-     mov     dword[tss + TSS3_S_SP0],    eax ; tss.esp0存放本次中断要返回的任务在下次被中断时的ring0堆栈，以便在中断发生时，正确地保留任务的状态
-
- .restart_reenter_v2:                ; 如果k_reenter != 0，会跳转到这里
- ; .re_enter:  ; 如果k_reenter != 0(好比等于1)，则会调到这里
-     dec     dword[k_reenter]
-
-     pop     gs
-     pop     fs
-     pop     es
-     pop     ds
-     popad
-     add     esp,    4              ; 让栈顶指向eip处，以便下面指向iretd
-
-     iretd
-
+;; 对比下面的代码和_start中的restart+restart_reenter，除了标号的名字不同外，其余都是相同的，我们完全可以删掉其中的一段，同时修改用到的标号
+; .restart_v2:
+;     mov     esp,    [p_proc_ready]  ; 离开内核栈
+;     lldt    [esp + P_LDT_SEL]
+;     lea     eax,                        [esp + P_STACKTOP]
+;     mov     dword[tss + TSS3_S_SP0],    eax ; tss.esp0存放本次中断要返回的任务在下次被中断时的ring0堆栈，以便在中断发生时，正确地保留任务的状态
+;
+; .restart_reenter_v2:                ; 如果k_reenter != 0，会跳转到这里
+; ; .re_enter:  ; 如果k_reenter != 0(好比等于1)，则会调到这里
+;     dec     dword[k_reenter]
+;
+;     pop     gs
+;     pop     fs
+;     pop     es
+;     pop     ds
+;     popad
+;     add     esp,    4              ; 让栈顶指向eip处，以便下面指向iretd
+;
+;     iretd
+;
 ALIGN   16
 hwint01:                           ; Interrupt routine for irq 1 (keyboard)
     hwint_master    1
