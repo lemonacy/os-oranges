@@ -31,6 +31,8 @@ typedef struct s_proc
     STACK_FRAME regs;          // process regisgers saved in stack frame
     u16 ldt_sel;               // gdt selector giving ldt base and limit
     DESCRIPTOR ldts[LDT_SIZE]; // local descriptors for code and data
+    int ticks;                 // remained ticks
+    int priority;              // process priority, read only
     u32 pid;                   // process id passed in from MM
     char p_name[16];           // name of the process
 } PROCESS;

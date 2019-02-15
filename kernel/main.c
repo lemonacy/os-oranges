@@ -48,6 +48,9 @@ PUBLIC int kernel_main()
         p_task++;
         selector_ldt += 1 << 3;
     }
+    proc_table[0].ticks = proc_table[0].priority = 150;
+    proc_table[1].ticks = proc_table[1].priority = 50;
+    proc_table[2].ticks = proc_table[2].priority = 30;
 
     /* 初始化8253 PIT */
     out_byte(TIMER_MODE, RATE_GENERATOR);
@@ -74,9 +77,9 @@ void TestA()
     while (1)
     {
         disp_str("A");
-        disp_int(get_ticks());
-        disp_str(".");
-        milli_delay(1000);
+        // disp_int(get_ticks());
+        // disp_str(".");
+        milli_delay(500);
     }
 }
 
@@ -86,9 +89,9 @@ void TestB()
     while (1)
     {
         disp_str("B");
-        disp_int(i++);
-        disp_str(".");
-        milli_delay(1000);
+        // disp_int(i++);
+        // disp_str(".");
+        milli_delay(500);
     }
 }
 
@@ -98,8 +101,8 @@ void TestC()
     while (1)
     {
         disp_str("C");
-        disp_int(i++);
-        disp_str(".");
-        milli_delay(1000);
+        // disp_int(i++);
+        // disp_str(".");
+        milli_delay(500);
     }
 }
