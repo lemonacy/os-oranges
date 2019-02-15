@@ -142,6 +142,8 @@ typedef struct s_tss
 #define INT_VECTOR_IRQ0 0x20
 #define INT_VECTOR_IRQ8 0x28
 
+#define INT_VECTOR_SYS_CALL 0x90
+
 #endif /* _ORANGES_PROTECT_H_ */
 
 /* 线性地址 -> 物理地址 */

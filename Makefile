@@ -24,7 +24,7 @@ DASMFLAGS 			= -u -o $(ENTRYPOINT) -e $(ENTRYOFFSET)
 # This Program
 ORANGESBOOT 		= boot/boot.bin boot/loader.bin
 ORANGESKERNEL 		= kernel.bin
-OBJS 				= kernel/global.o kernel/kernel.o kernel/start.o kernel/i8259.o kernel/protect.o kernel/main.o kernel/clock.o lib/kliba.o lib/string.o lib/klib.o
+OBJS 				= kernel/global.o kernel/kernel.o kernel/start.o kernel/i8259.o kernel/protect.o kernel/main.o kernel/clock.o kernel/syscall.o kernel/proc.o lib/kliba.o lib/string.o lib/klib.o
 DASMOUTPUT 			= kernel.bin.asm
 
 # All Phony Targets
@@ -67,7 +67,7 @@ boot/loader.bin : boot/loader.asm boot/include/load.inc boot/include/fat12hdr.in
 $(ORANGESKERNEL) : $(OBJS)
 	$(LD) $(LDFLAGS) -o $(ORANGESKERNEL) $(OBJS)
 
-kernel/kernel.o : kernel/kernel.asm
+kernel/kernel.o : kernel/kernel.asm include/sconst.inc
 	$(ASM) $(ASMKFLAGS) -o $@ $<
 
 kernel/global.o: kernel/global.c include/global.h include/const.h include/type.h include/protect.h
@@ -88,7 +88,13 @@ kernel/main.o: kernel/main.c include/const.h include/proto.h include/const.h inc
 kernel/clock.o: kernel/clock.c include/const.h include/proto.h include/const.h include/type.h
 	$(CC) $(CFLAGS) -o $@ $<
 
-lib/kliba.o : lib/kliba.asm
+kernel/proc.o: kernel/proc.c include/const.h include/proto.h include/type.h
+	$(CC) $(CFLAGS) -o $@ $<
+
+kernel/syscall.o: kernel/syscall.asm include/sconst.inc
+	$(ASM) $(ASMKFLAGS) -o $@ $<
+
+lib/kliba.o : lib/kliba.asm include/sconst.inc
 	$(ASM) $(ASMKFLAGS) -o $@ $<
 
 lib/string.o : lib/string.asm

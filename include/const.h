@@ -27,4 +27,6 @@
 #define NR_IRQ 16 /* 对应主从两个8259A */
 #define CLOCK_IRQ 0
 
+#define NR_SYS_CALL 1
+
 #endif /* _ORANGES_CONST_H_ */

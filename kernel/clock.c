@@ -6,6 +6,7 @@
 PUBLIC void clock_handler(int irq)
 {
     disp_str("#");
+    ticks++;
 
     if (k_reenter != 0) {
         disp_str("!");

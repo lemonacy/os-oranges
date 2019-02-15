@@ -22,6 +22,7 @@ extern tss
 extern disp_pos
 extern k_reenter
 extern irq_table
+extern sys_call_table
 
 [section .bss]
 StackSpace  resb    2 * 1024        ; 内核栈
@@ -68,6 +69,8 @@ global hwint12
 global hwint13
 global hwint14
 global hwint15
+
+global sys_call
 
 _start:
     ; mov     ah,     0Fh
@@ -308,14 +311,26 @@ save:
     mov     ds,     dx
     mov     es,     dx
 
-    mov     eax,    esp             ; eax = 进程表起始地址
+    mov     esi,    esp             ; esi = 进程表起始地址
 
     inc     dword[k_reenter]
     cmp     dword[k_reenter],   0
     jne     .1
     mov     esp,    StackTop        ; 切换到内核栈
     push    restart
-    jmp     [eax + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr，为什么要通过jmp指令返回，而不是ret呢？因为此时堆栈已经切换到内核堆栈了，call指令自动压栈的EIP是原来的堆栈，当我们要回到call save的下一条指令的话，ret已经不行了，只能用jmp了
+    jmp     [esi + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr，为什么要通过jmp指令返回，而不是ret呢？因为此时堆栈已经切换到内核堆栈了，call指令自动压栈的EIP是原来的堆栈，当我们要回到call save的下一条指令的话，ret已经不行了，只能用jmp了
 .1:
     push    restart_reenter
-    jmp     [eax + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr
+    jmp     [esi + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr
+
+sys_call:
+    call    save
+
+    sti
+
+    call    [sys_call_table + eax * 4]
+    mov     [esi + EAXREG - P_STACKBASE],   eax
+
+    cli
+
+    ret

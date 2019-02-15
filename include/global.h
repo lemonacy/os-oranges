@@ -27,9 +27,13 @@ EXTERN PROCESS *p_proc_ready;
 
 EXTERN int k_reenter;
 
+EXTERN int ticks;
+
 extern PROCESS proc_table[];
 extern char task_stack[];
 extern TASK task_table[];
 
 extern irq_handler irq_table[];
+
+extern system_call sys_call_table[];
 #endif /* _ORANGES_GLOBAL_H_ */
