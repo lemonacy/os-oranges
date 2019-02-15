@@ -194,42 +194,25 @@ exception:
 ; ------------------------------
 
 ALIGN   16
-hwint00:                           ; Interrupt routine for irq 0 (the click)
-    sub     esp,    4              ; 跳过retaddr（ss,esp,eflags,cs,eip已经由CPU自动压栈了）
+hwint00:                            ; Interrupt routine for irq 0 (the click)
+    call    save                    ; 用save代替原来的一堆push
 
-    pushad
-    push    ds
-    push    es
-    push    fs
-    push    gs
-    mov     dx,     ss
-    mov     ds,     dx
-    mov     es,     dx
-
-    ; inc     byte[gs:0]
+    in      al,         INT_M_CTLMASK
+    or      al,         1
+    out     INT_M_CTLMASK,  al      ; 不允许在发生时钟中断
 
     mov     al,         EOI         ; reenable master 8259
     out     INT_M_CTL,  al          ; 为了让时钟中断可以不停地发生而不是只发生一次，需要设置EOI
 
-    inc     dword[k_reenter]
-    cmp     dword[k_reenter],   0
-    ; jne     .re_enter               ; 如果是中断重入，则不再开启中断嵌套
-    jne     .1                      ; 重入时跳转到.1，通常情况下顺序执行
-
-    mov     esp,    StackTop        ; 非重入时才切刀内核栈
-
-    push    restart                 ; 指定非重入时，下面ret的返回地址是restart_v2，需要执行mov,lldt,lea,mov指令
-    jmp     .2
-.1:                                 ; 中断重入
-    push    restart_reenter         ; 指定重入时，下面ret的返回地址是restart_reenter_v2，不需要执行下面的mov,lldt,lea,mov指令，因为最外层的中断（第一次进入的中断）会负责做这部分工作
-.2:                                 ; 没有中断重入
-    sti                             ; 开启中断嵌套
-
+    sti                             ; 开启中断嵌套（允许其它中断发生）
     push    0
-    call    clock_handler           ; 不管重入还是非重入，clock_handler都会被执行，所以需要在clock_handler里边处理是否重入的问题
+    call    clock_handler
     add     esp,    4
+    cli                             ; 关闭嵌套中断（关闭所有中断）
 
-    cli                             ; 关闭嵌套中断
+    in      al,         INT_M_CTLMASK
+    and     al,         0xFE
+    out     INT_M_CTLMASK,  al      ; 又允许时钟中断发生
 
     ret                             ; 重入时返回到.restart_reenter_v2，通常情况下(非重入)返回到.restart_v2。注：ret - 短返回，只从堆栈中pop出EIP
 
@@ -321,3 +304,25 @@ hwint14:                           ; Interrupt routine for irq 14 (AT winchester
 ALIGN   16
 hwint15:                           ; Interrupt routine for irq 15
     hwint_slave    15
+
+save:
+    pushad
+    push    ds
+    push    es
+    push    fs
+    push    gs
+    mov     dx,     ss
+    mov     ds,     dx
+    mov     es,     dx
+
+    mov     eax,    esp             ; eax = 进程表起始地址
+
+    inc     dword[k_reenter]
+    cmp     dword[k_reenter],   0
+    jne     .1
+    mov     esp,    StackTop        ; 切换到内核栈
+    push    restart
+    jmp     [eax + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr，为什么要通过jmp指令返回，而不是ret呢？因为此时堆栈已经切换到内核堆栈了，call指令自动压栈的EIP是原来的堆栈，当我们要回到call save的下一条指令的话，ret已经不行了，只能用jmp了
+.1:
+    push    restart_reenter
+    jmp     [eax + RETADR - P_STACKBASE]    ; 跳转到进程表里边的retaddr
