@@ -36,7 +36,7 @@ PUBLIC void task_tty();
 /* 以下是系统调用相关 */
 
 /* kernal.asm */
-PUBLIC void sys_call();     /* int_handler */
+PUBLIC void sys_call(); /* int_handler */
 
 /* syscall.asm */
 PUBLIC int get_ticks();

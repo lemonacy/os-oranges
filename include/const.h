@@ -5,6 +5,9 @@
 #define PUBLIC
 #define PRIVATE static
 
+#define TRUE 1
+#define FALSE 0
+
 /* GDT和IDT中描述符的个数 */
 #define GDT_SIZE 128
 #define IDT_SIZE 256

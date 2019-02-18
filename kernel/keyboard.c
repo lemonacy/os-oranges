@@ -1,6 +1,8 @@
 #include "const.h"
 #include "proto.h"
 #include "keyboard.h"
+#include "string.h"
+#include "keymap.h"
 
 void keyboard_handler(int irq);
 
@@ -35,6 +37,10 @@ void keyboard_handler(int irq)
 PUBLIC void keyboard_read()
 {
     u8 scan_code;
+    char output[2];
+    int make; /* TRUE: make, FALSE: break */
+
+    memset(output, 0, 2);
 
     if (kb_in.count > 0)
     {
@@ -48,6 +54,24 @@ PUBLIC void keyboard_read()
         kb_in.count--;
         enable_int();
 
-        disp_int(scan_code);
+        /* 下面开始解析扫描码 */
+        if (scan_code == 0xE1)
+        {
+            /* 暂时不做任何操作 */
+        }
+        else if (scan_code == 0xE0)
+        {
+            /* 暂时不做任何操作 */
+        }
+        else /* 下面处理可打印字符 */
+        {
+            /* 首先判断是make还是break */
+            make = (scan_code & FLAG_BREAK ? FALSE : TRUE);
+            /* 如果是make就打印，break则不做处理 */
+            if (make) {
+                output[0] = keymap[(scan_code & 0x7F) * MAP_COLS];
+                disp_str(output);
+            }
+        }
     }
 }
