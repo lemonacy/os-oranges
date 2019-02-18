@@ -51,13 +51,10 @@ void keyboard_handler(int irq)
 PUBLIC void keyboard_read()
 {
     u8 scan_code;
-    char output[2];
     int make; /* TRUE: make, FALSE: break */
 
     u32 key = 0; /* 用一个整形来表示一个键。比如，如果Home键被按下，则key值将为定义在keyboard.h中的HOME。 */
     u32 *keyrow; /* 指向keymap[]的某一行 */
-
-    memset(output, 0, 2);
 
     if (kb_in.count > 0)
     {
@@ -141,40 +138,36 @@ PUBLIC void keyboard_read()
             {
             case SHIFT_L:
                 shift_l = make;
-                key = 0;
                 break;
             case SHIFT_R:
                 shift_r = make;
-                key = 0;
                 break;
             case CTRL_L:
                 ctrl_l = make;
-                key = 0;
                 break;
             case CTRL_R:
                 ctrl_r = make;
-                key = 0;
                 break;
             case ALT_L:
                 alt_l = make;
-                key = 0;
                 break;
             case ALT_R:
                 alt_r = make;
-                key = 0;
                 break;
             default:
-                if (!make)
-                {            /* 如果是break code */
-                    key = 0; /* 忽略之 */
-                }
                 break;
             }
-            /* 如果key不为0则可打印，否则不做处理 */
-            if (key)
+
+            if (make) /* 忽略break code */
             {
-                output[0] = key;
-                disp_str(output);
+                key |= shift_l ? FLAG_SHIFT_L : 0; /* 不管是单键还是组合键，都使用一个32位整形数key来表示。因为 */
+                key |= shift_r ? FLAG_SHIFT_R : 0; /* 可打印字符的ASCII码是8位，而我们将特殊的按键定义成了FLAG_EXT和一个 */
+                key |= ctrl_l ? FLAG_CTRL_L : 0;   /* 单字节数的和，也不超过9位（可参考keyboard.h），这样，我们还剩余很多位 */
+                key |= ctrl_r ? FLAG_CTRL_R : 0;   /* 来表示Shift、Alt、Ctrl等键的状态，一个整形记载的信息足够我们了解当前的按键情况。*/
+                key |= alt_l ? FLAG_ALT_L : 0;
+                key |= alt_r ? FLAG_ALT_R : 0;
+
+                in_process(key);
             }
         }
     }

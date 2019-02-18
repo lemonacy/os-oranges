@@ -32,6 +32,7 @@ void TestA();
 void TestB();
 void TestC();
 PUBLIC void task_tty();
+PUBLIC void in_process(u32 key);
 
 /* 以下是系统调用相关 */
 
