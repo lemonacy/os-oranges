@@ -45,16 +45,18 @@ typedef struct s_task
 } TASK;
 
 /* Number of tasks */
-#define NR_TASKS 3
+#define NR_TASKS 4
 
 /* stacks of tasks */
 #define STACK_SIZE_DEFAULT 0x4000 /* 16KB */
 #define STACK_SIZE_TESTA STACK_SIZE_DEFAULT
 #define STACK_SIZE_TESTB STACK_SIZE_DEFAULT
 #define STACK_SIZE_TESTC STACK_SIZE_DEFAULT
+#define STACK_SIZE_TTY STACK_SIZE_DEFAULT
 
 #define STACK_SIZE_TOTAL (STACK_SIZE_TESTA + \
                           STACK_SIZE_TESTB + \
-                          STACK_SIZE_TESTC)
+                          STACK_SIZE_TESTC + \
+                          STACK_SIZE_TTY)
 
 #endif /* _ORANGES_PROC_H_ */

@@ -16,14 +16,22 @@ PUBLIC char *itoa(char *str, int num);
 PUBLIC void init_prot();
 PUBLIC void init_8259A();
 PUBLIC void put_irq_handler(int irq, irq_handler handler);
+PUBLIC void enable_irq(int irq);
+PUBLIC void disable_irq(int irq);
 PUBLIC void spurious_irq(int irq);
-PUBLIC void clock_handler(int irq);
+PUBLIC void init_clock();
+PUBLIC void init_keyboard();
+PUBLIC void keyboard_read();
+
+PUBLIC void enable_int();
+PUBLIC void disable_int();
 
 PUBLIC u32 seg2phys(u16 seg);
 
 void TestA();
 void TestB();
 void TestC();
+PUBLIC void task_tty();
 
 /* 以下是系统调用相关 */
 

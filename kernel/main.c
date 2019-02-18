@@ -5,7 +5,6 @@
 #include "global.h"
 
 void restart();
-void enable_irq(int irq);
 
 PUBLIC int kernel_main()
 {
@@ -19,8 +18,9 @@ PUBLIC int kernel_main()
     int i;
     for (i = 0; i < NR_TASKS; i++)
     {
-        strcpy(p_proc->p_name, p_task->name); // name of process
-        p_proc->pid = i;                      // pid
+        strcpy(p_proc->p_name, p_task->name);  // name of process
+        p_proc->pid = i;                       // pid
+        p_proc->ticks = p_proc->priority = 10; // default priority 10
 
         /* LDT在GDT中的描述符初始化代码位于：protect.c::init_prot() */
         p_proc->ldt_sel = selector_ldt;
@@ -48,21 +48,16 @@ PUBLIC int kernel_main()
         p_task++;
         selector_ldt += 1 << 3;
     }
-    proc_table[0].ticks = proc_table[0].priority = 15;
-    proc_table[1].ticks = proc_table[1].priority = 5;
-    proc_table[2].ticks = proc_table[2].priority = 3;
-
-    /* 初始化8253 PIT */
-    out_byte(TIMER_MODE, RATE_GENERATOR);
-    out_byte(TIMER0, (u8)(TIMER_FREQ / HZ));
-    out_byte(TIMER0, (u8)((TIMER_FREQ / HZ) >> 8));
+    proc_table[0].ticks = proc_table[0].priority = 15; // TestA
+    proc_table[1].ticks = proc_table[1].priority = 5;  // TestB
+    proc_table[2].ticks = proc_table[2].priority = 3;  // TestC
 
     p_proc_ready = proc_table;
     k_reenter = 0; // 由于在第一次中断发生之前（kernal.asm::_start::restart_reenter）就执行了一次减一操作，所以这个地方的初始化要修改为0
     ticks = 0;
 
-    put_irq_handler(CLOCK_IRQ, clock_handler); /* 设定时钟中断处理程序 */
-    enable_irq(CLOCK_IRQ);                     /* 然8259A可以接受时钟中断 */
+    init_clock();
+    init_keyboard();
 
     restart();
 
@@ -76,7 +71,7 @@ void TestA()
     int i = 0;
     while (1)
     {
-        disp_str("A");
+        // disp_str("A");
         // disp_int(get_ticks());
         // disp_str(".");
         milli_delay(10);
@@ -88,7 +83,7 @@ void TestB()
     int i = 0x1000;
     while (1)
     {
-        disp_str("B");
+        // disp_str("B");
         // disp_int(i++);
         // disp_str(".");
         milli_delay(10);
@@ -100,7 +95,7 @@ void TestC()
     int i = 0x2000;
     while (1)
     {
-        disp_str("C");
+        // disp_str("C");
         // disp_int(i++);
         // disp_str(".");
         milli_delay(10);
