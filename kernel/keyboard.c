@@ -8,7 +8,7 @@ void keyboard_handler(int irq);
 
 PRIVATE KB_INPUT kb_in;
 
-PRIVATE int code_with_E0 = 0;
+PRIVATE int code_with_E0;
 PRIVATE int shift_l;
 PRIVATE int shift_r;
 PRIVATE int ctrl_l;
@@ -19,6 +19,8 @@ PRIVATE int caps_lock;
 PRIVATE int num_lock;
 PRIVATE int scroll_lock;
 PRIVATE int column;
+
+PRIVATE u8 get_byte_from_kbuf();
 
 PUBLIC void init_keyboard()
 {
@@ -59,31 +61,70 @@ PUBLIC void keyboard_read()
 
     if (kb_in.count > 0)
     {
-        disable_int();
-        scan_code = *kb_in.p_tail;
-        kb_in.p_tail++;
-        if (kb_in.p_tail == kb_in.buf + KB_IN_BYTES)
-        {
-            kb_in.p_tail = kb_in.buf;
-        }
-        kb_in.count--;
-        enable_int();
+        code_with_E0 = 0;
+        scan_code = get_byte_from_kbuf();
 
         /* 下面开始解析扫描码 */
         if (scan_code == 0xE1)
         {
-            /* 暂时不做任何操作 */
+            int i;
+            u8 pausebrk_scode[] = {0xE1, 0x1D, 0x45, 0xE1, 0x9D, 0xC5};
+            int is_pausebreak = 1;
+            for (i = 1; i < 6; i++)
+            {
+                if (get_byte_from_kbuf() != pausebrk_scode[i])
+                {
+                    is_pausebreak = FALSE;
+                    break;
+                }
+            }
+            if (is_pausebreak)
+            {
+                key = PAUSEBREAK;
+            }
         }
         else if (scan_code == 0xE0)
         {
-            code_with_E0 = TRUE;
+            scan_code = get_byte_from_kbuf();
+
+            /* PrintScreen被按下: 0xE0,0x2A,0xE0,0x37 */
+            if (scan_code == 0x2A)
+            {
+                if (get_byte_from_kbuf() == 0xE0)
+                {
+                    if (get_byte_from_kbuf() == 0x37)
+                    {
+                        key = PRINTSCREEN;
+                        make = TRUE;
+                    }
+                }
+            }
+            /* PrintScreen被释放: 0xE0,0xB7,0xE0,0xAA */
+            if (scan_code == 0xB7)
+            {
+                if (get_byte_from_kbuf() == 0xE0)
+                {
+                    if (get_byte_from_kbuf() == 0xAA)
+                    {
+                        key = PRINTSCREEN;
+                        make = FALSE;
+                    }
+                }
+            }
+            /* 不是PrintScreen，此时scan_code为0xE0紧跟的那个值 */
+            if (key == 0)
+            {
+                code_with_E0 = TRUE;
+            }
         }
-        else /* 下面处理可打印字符 */
+
+        if (key != PAUSEBREAK && key != PRINTSCREEN)
         {
             /* 首先判断是make还是break */
             make = (scan_code & FLAG_BREAK ? FALSE : TRUE);
             /* 先定位到keymap[]中的行 */
             keyrow = &keymap[(scan_code & 0x7F) * MAP_COLS];
+
             column = 0;
             if (shift_l || shift_r)
             {
@@ -95,6 +136,7 @@ PUBLIC void keyboard_read()
                 code_with_E0 = FALSE;
             }
             key = keyrow[column];
+
             switch (key)
             {
             case SHIFT_L:
@@ -136,4 +178,24 @@ PUBLIC void keyboard_read()
             }
         }
     }
+}
+
+PRIVATE u8 get_byte_from_kbuf()
+{
+    u8 scan_code;
+    while (kb_in.count <= 0)
+    {
+    } // wait
+
+    disable_int();
+    scan_code = *(kb_in.p_tail);
+    kb_in.p_tail++;
+    if (kb_in.p_tail == kb_in.buf + KB_IN_BYTES)
+    {
+        kb_in.p_tail = kb_in.buf;
+    }
+    kb_in.count--;
+    enable_int();
+
+    return scan_code;
 }
