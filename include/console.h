@@ -2,6 +2,7 @@
 #define _ORANGES_CONSOLE_H_
 
 #include "const.h"
+#include "tty.h"
 
 typedef struct s_console
 {
@@ -23,5 +24,7 @@ typedef struct s_console
 
 PUBLIC int is_current_console(CONSOLE *p_con);
 PUBLIC void out_char(CONSOLE *p_con, char ch);
+PUBLIC void init_screen(TTY *p_tty);
+PUBLIC void select_console(int nr_console);
 
 #endif /* _ORANGES_CONSOLE_H_ */
