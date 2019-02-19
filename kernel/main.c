@@ -57,7 +57,7 @@ PUBLIC int kernel_main()
     ticks = 0;
 
     init_clock();
-    init_keyboard();
+    // init_keyboard();
 
     restart();
 

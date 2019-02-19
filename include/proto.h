@@ -1,5 +1,7 @@
 #include "const.h"
 #include "type.h"
+#include "console.h"
+#include "tty.h"
 
 PUBLIC void out_byte(u16 port, u8 value);
 PUBLIC u8 in_byte(u16 port);
@@ -21,7 +23,7 @@ PUBLIC void disable_irq(int irq);
 PUBLIC void spurious_irq(int irq);
 PUBLIC void init_clock();
 PUBLIC void init_keyboard();
-PUBLIC void keyboard_read();
+PUBLIC void keyboard_read(TTY *p_tty);
 
 PUBLIC void enable_int();
 PUBLIC void disable_int();
@@ -32,7 +34,6 @@ void TestA();
 void TestB();
 void TestC();
 PUBLIC void task_tty();
-PUBLIC void in_process(u32 key);
 
 /* 以下是系统调用相关 */
 

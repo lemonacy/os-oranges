@@ -3,6 +3,8 @@
 #include "keyboard.h"
 #include "string.h"
 #include "keymap.h"
+#include "tty.h"
+#include "global.h"
 
 void keyboard_handler(int irq);
 
@@ -48,7 +50,7 @@ void keyboard_handler(int irq)
     }
 }
 
-PUBLIC void keyboard_read()
+PUBLIC void keyboard_read(TTY *p_tty)
 {
     u8 scan_code;
     int make; /* TRUE: make, FALSE: break */
@@ -167,7 +169,7 @@ PUBLIC void keyboard_read()
                 key |= alt_l ? FLAG_ALT_L : 0;
                 key |= alt_r ? FLAG_ALT_R : 0;
 
-                in_process(key);
+                in_process(p_tty, key);
             }
         }
     }

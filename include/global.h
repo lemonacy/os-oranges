@@ -5,6 +5,8 @@
 #include "type.h"
 #include "protect.h"
 #include "proc.h"
+#include "tty.h"
+#include "console.h"
 
 /* EXTERN is defined as extern except in global.c */
 #ifdef GLOBAL_VARIABLES_HERE
@@ -36,4 +38,8 @@ extern TASK task_table[];
 extern irq_handler irq_table[];
 
 extern system_call sys_call_table[];
+
+extern TTY tty_table[];
+extern CONSOLE console_table[];
+EXTERN int nr_current_console;
 #endif /* _ORANGES_GLOBAL_H_ */
