@@ -29,6 +29,10 @@ PUBLIC void init_keyboard()
     kb_in.count = 0;
     kb_in.p_head = kb_in.p_tail = kb_in.buf;
 
+    shift_l = shift_r = 0;
+    ctrl_l = ctrl_r = 0;
+    alt_l = alt_r = 0;
+
     put_irq_handler(KEYBOARD_IRQ, keyboard_handler);
     enable_irq(KEYBOARD_IRQ);
 }
