@@ -60,8 +60,10 @@ PUBLIC void init_screen(TTY *p_tty)
     set_cursor(p_tty->p_console->cursor);
 }
 
-PUBLIC void select_console(int nr_console) {
-    if (nr_console < 0 || nr_console >= NR_CONSOLES) {
+PUBLIC void select_console(int nr_console)
+{
+    if (nr_console < 0 || nr_console >= NR_CONSOLES)
+    {
         return;
     }
     nr_current_console = nr_console;
@@ -77,4 +79,24 @@ PRIVATE void set_video_start_addr(u32 addr)
     out_byte(CRTC_ADDR_REG, START_ADDR_L);
     out_byte(CRTC_DATA_REG, addr & 0xFF);
     enable_int();
+}
+
+PUBLIC void scroll_screen(CONSOLE *p_con, int direction)
+{
+    if (direction == SCR_UP)
+    {
+        if (p_con->current_start_addr > p_con->original_addr)
+        {
+            p_con->current_start_addr -= SCR_WIDTH;
+        }
+    }
+    else if (direction == SCR_DN)
+    {
+        if (p_con->current_start_addr + SCR_WIDTH < p_con->original_addr + p_con->v_mem_limit)
+        {
+            p_con->current_start_addr += SCR_WIDTH;
+        }
+    }
+    set_video_start_addr(p_con->current_start_addr);
+    set_cursor(p_con->cursor);
 }
