@@ -34,6 +34,7 @@ EXTERN int ticks;
 extern PROCESS proc_table[];
 extern char task_stack[];
 extern TASK task_table[];
+extern TASK user_proc_table[];
 
 extern irq_handler irq_table[];
 

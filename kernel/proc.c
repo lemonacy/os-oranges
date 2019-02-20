@@ -15,7 +15,7 @@ PUBLIC void schedule()
     while (!greatest_ticks)
     {
         // 找出最大ticks的进程
-        for (p = proc_table; p < proc_table + NR_TASKS; p++)
+        for (p = proc_table; p < proc_table + NR_TASKS + NR_PROCS; p++)
         {
             if (p->ticks > greatest_ticks)
             {
@@ -27,7 +27,7 @@ PUBLIC void schedule()
         // 如果所有进程的ticks都为0，则重新复制再来
         if (!greatest_ticks)
         {
-            for (p = proc_table; p < proc_table + NR_TASKS; p++)
+            for (p = proc_table; p < proc_table + NR_TASKS + NR_PROCS; p++)
             {
                 p->ticks = p->priority;
             }
