@@ -14,14 +14,14 @@
  *      MAKE_COLOR(BLACK, RED) | BRIGHT
  *      MAKE_COLOR(BLACK, RED) | BRIGHT | FLASH
  */
-#define BLACK   0x0     /* 0000 */
-#define WHITE   0x7     /* 0111 */
-#define RED     0x4     /* 0100 */
-#define GREEN   0x2     /* 0010 */
-#define BLUE    0x1     /* 0001 */
-#define FLASH   0x80    /* 1000 0000 */
-#define BRIGHT  0x08    /* 0000 1000 */
-#define	MAKE_COLOR(x,y)	((x<<4) | y) /* MAKE_COLOR(Background,Foreground) */
+#define BLACK 0x0                       /* 0000 */
+#define WHITE 0x7                       /* 0111 */
+#define RED 0x4                         /* 0100 */
+#define GREEN 0x2                       /* 0010 */
+#define BLUE 0x1                        /* 0001 */
+#define FLASH 0x80                      /* 1000 0000 */
+#define BRIGHT 0x08                     /* 0000 1000 */
+#define MAKE_COLOR(x, y) ((x << 4) | y) /* MAKE_COLOR(Background,Foreground) */
 
 /* GDT和IDT中描述符的个数 */
 #define GDT_SIZE 128
@@ -77,6 +77,8 @@
 #define KB_CMD 0x64  /* I/O port for keyboard command \
              Read : Read Status Register              \
              Write: Write Input Buffer(8042 Command) */
+#define KB_ACK 0xFA
+#define LED_CODE 0xED
 
 /* TTY */
 #define NR_CONSOLES 3 /* number of consoles */
