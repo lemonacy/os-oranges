@@ -58,7 +58,7 @@
 #define KEYBOARD_IRQ 1
 
 /* system call */
-#define NR_SYS_CALL 1
+#define NR_SYS_CALL 2
 
 /* 8253/8254 PIT (Programmable Interval Timer) */
 #define TIMER0 0x40         /* I/O port for timer channel 0 */

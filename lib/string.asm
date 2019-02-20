@@ -3,6 +3,7 @@
 global  memcpy
 global  memset
 global  strcpy
+global  strlen
 
 
 ; --------------------------------------------------------------------------------
@@ -98,5 +99,24 @@ strcpy:
 
     mov     eax,    [ebp + 8]   ; 返回值
 
+    pop     ebp
+    ret
+
+; --------------------------------------------------------------------------------
+; int strlen(char *p_str)
+; --------------------------------------------------------------------------------
+strlen:
+    push    ebp
+    mov     ebp,    esp
+
+    mov     eax,    0           ; 计数
+    mov     esi,    [ebp + 8]   ; esi指向字符串首地址
+.1:
+    cmp     byte[esi],  0
+    jz      .2
+    inc     esi
+    inc     eax
+    jmp     .1
+.2:
     pop     ebp
     ret

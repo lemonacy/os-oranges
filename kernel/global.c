@@ -15,7 +15,7 @@ PUBLIC TASK user_proc_table[NR_PROCS] = {
     {TestC, STACK_SIZE_TESTC, "TestC"}};
 PUBLIC irq_handler irq_table[NR_IRQ];
 PUBLIC system_call sys_call_table[NR_SYS_CALL] = {
-    sys_get_ticks};
+    sys_get_ticks, sys_write};
 
 PUBLIC TTY tty_table[NR_CONSOLES];
 PUBLIC CONSOLE console_table[NR_CONSOLES];

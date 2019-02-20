@@ -39,6 +39,7 @@ PUBLIC int kernel_main()
         strcpy(p_proc->p_name, p_task->name);  // name of process
         p_proc->pid = i;                       // pid
         p_proc->ticks = p_proc->priority = 10; // default priority 10
+        p_proc->nr_tty = 0;                    // defualt tty
 
         /* LDT在GDT中的描述符初始化代码位于：protect.c::init_prot() */
         p_proc->ldt_sel = selector_ldt;
@@ -71,6 +72,10 @@ PUBLIC int kernel_main()
     proc_table[2].ticks = proc_table[2].priority = 1;  // TestB
     proc_table[3].ticks = proc_table[3].priority = 1;  // TestC
 
+    proc_table[1].nr_tty = 0;
+    proc_table[2].nr_tty = 1;
+    proc_table[3].nr_tty = 1;
+
     p_proc_ready = proc_table;
     k_reenter = 0; // 由于在第一次中断发生之前（kernal.asm::_start::restart_reenter）就执行了一次减一操作，所以这个地方的初始化要修改为0
     ticks = 0;
@@ -93,7 +98,8 @@ void TestA()
         // disp_str("A");
         // disp_int(get_ticks());
         // disp_str(".");
-        milli_delay(10);
+        printf("<Ticks:%x", get_ticks());
+        milli_delay(200);
     }
 }
 
@@ -105,6 +111,7 @@ void TestB()
         // disp_str("B");
         // disp_int(i++);
         // disp_str(".");
+        printf("B");
         milli_delay(10);
     }
 }
@@ -117,6 +124,7 @@ void TestC()
         // disp_str("C");
         // disp_int(i++);
         // disp_str(".");
+        printf("C");
         milli_delay(10);
     }
 }

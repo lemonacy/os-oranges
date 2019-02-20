@@ -2,6 +2,7 @@
 #include "type.h"
 #include "console.h"
 #include "tty.h"
+#include "proc.h"
 
 PUBLIC void out_byte(u16 port, u8 value);
 PUBLIC u8 in_byte(u16 port);
@@ -42,8 +43,12 @@ PUBLIC void sys_call(); /* int_handler */
 
 /* syscall.asm */
 PUBLIC int get_ticks();
-
+PUBLIC void write(char *buf, int len);
 /* proc.c */
 PUBLIC int sys_get_ticks();
+PUBLIC int sys_write(char *buf, int len, PROCESS *p_proc);
 
 PUBLIC void schedule();
+
+PUBLIC int printf(const char *fmt, ...);
+PUBLIC int vsprintf(char *buf, const char *fmt, va_list args);
